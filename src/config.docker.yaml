@@ -1,0 +1,16 @@
+Server:
+  Port: 8080
+  ReadTimeout: 30s
+  WriteTimeout: 30s
+  IdleTimeout: 60s
+  MaxConnections: 100
+  ShutdownTimeout: 30  # Graceful shutdown timeout in seconds
+
+Database:
+  Host: mysql_db
+  Port: 3306
+  Username: banking_user
+  Password: userpassword
+  Name: banking
+  MaxOpenConns: 100
+  MaxIdleTimeInSecond: 30

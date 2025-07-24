@@ -1,0 +1,16 @@
+Server:
+  Port: 8080
+  ReadTimeout: 30s
+  WriteTimeout: 30s
+  IdleTimeout: 60s
+  MaxConnections: 100
+  ShutdownTimeout: 30 
+
+Database:
+  Host: localhost
+  Port: 3306
+  Username: username
+  Password: password
+  Name: database_name
+  MaxOpenConns: 100
+  MaxIdleTimeInSecond: 30

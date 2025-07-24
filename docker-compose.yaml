@@ -1,0 +1,65 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - banking_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      timeout: 20s
+      retries: 10
+
+  banking-api-migrations:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: banking_api_migrations
+    env_file:
+      - ./src/config.docker.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - banking_network
+    volumes:
+      - ./src:/app/src
+      - ./src/config.docker.yaml:/app/config.yaml
+    command: ["./banking-api", "migrate"]
+
+  banking-api:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: banking_api
+    env_file:
+      - ./src/config.docker.yaml
+    ports:
+      - "${PORT}:${PORT}"
+    depends_on:
+      banking-api-migrations:
+        condition: service_completed_successfully
+    networks:
+      - banking_network
+    volumes:
+      - ./src:/app/src
+      - ./src/config.docker.yaml:/app/config.yaml
+    command: ["./banking-api", "serve"]
+  
+
+networks:
+  banking_network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local

@@ -1,0 +1,29 @@
+# Environment variables
+.env
+
+# Docker volumes
+db_data/
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Configuration files
+config.yaml
+
+# binary files
+banking-api
+__debug*
+
+# Large seed files (too big for GitHub)
+src/database/seeds/*.sql
