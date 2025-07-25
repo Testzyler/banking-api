@@ -27,3 +27,6 @@ __debug*
 
 # Large seed files (too big for GitHub)
 src/database/seeds/*.sql
+
+coverage.html
+coverage.out

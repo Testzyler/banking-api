@@ -70,12 +70,6 @@ func (h *userHandler) GetUser(c *fiber.Ctx) error {
 	GetUserByIdParams := entities.GetUserByIdParams{
 		UserID: userID,
 	}
-	if err := c.BodyParser(&GetUserByIdParams); err != nil {
-		log.Printf("Error parsing request body: %v", err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
 
 	user, err := h.userService.GetUserByID(GetUserByIdParams)
 	if err != nil {
