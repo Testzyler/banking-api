@@ -7,6 +7,8 @@ import (
 
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/database"
+	"github.com/Testzyler/banking-api/server/exceptions"
+	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -31,6 +33,18 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 		WriteTimeout:          config.Server.WriteTimeout,
 		IdleTimeout:           config.Server.IdleTimeout,
 		Concurrency:           config.Server.MaxConnections * 256 * 1024,
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			log.Printf("Error: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(&response.ErrorResponse{
+				BaseResponse: response.BaseResponse{
+					Message: "Internal Server Error",
+				},
+				Error: response.ErrorDetail{
+					ErrorCode: exceptions.ErrCodeInternalServer,
+					Details:   "An unexpected error occurred",
+				},
+			})
+		},
 	})
 
 	// Initialize database
@@ -54,8 +68,16 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 
 // Middleware
 func (s *Server) setupMiddleware() {
+	// Global error handling middleware
+	// s.App.Use(pkg.GlobalErrorMiddleware())
+
+	// Recovery middleware
 	s.App.Use(recover.New())
+
+	// Logger middleware
 	s.App.Use(logger.New())
+
+	// CORS middleware
 	s.App.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
@@ -70,16 +92,24 @@ func (s *Server) setupRoutes() {
 	// Health check
 	api.Get("/healthz", func(c *fiber.Ctx) error {
 		if s.isShuttingDown {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"status":  "shutting_down",
-				"message": "Server is shutting down",
+			return c.Status(fiber.StatusServiceUnavailable).JSON(response.ErrorResponse{
+				Error: response.ErrorDetail{
+					ErrorCode: exceptions.ErrCodeServiceUnavailable,
+					Details:   "Service is unavailable",
+				},
 			})
 		}
 
-		return c.JSON(fiber.Map{
-			"status":    "ok",
-			"message":   "Banking API is running",
+		healthData := map[string]interface{}{
+			"status":    "healthy",
 			"timestamp": time.Now().UTC(),
+		}
+
+		return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
+			BaseResponse: response.BaseResponse{
+				Data:    healthData,
+				Message: "Health check successful",
+			},
 		})
 	})
 
@@ -90,6 +120,9 @@ func (s *Server) setupRoutes() {
 			userRepository.NewUserRepository(s.DB.GetDB()),
 		),
 	)
+
+	// Setup 404 handler
+	s.App.Use(response.NotFoundHandler)
 }
 
 func (s *Server) Start() error {

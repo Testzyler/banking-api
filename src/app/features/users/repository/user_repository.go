@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	models "github.com/Testzyler/banking-api/app/.models"
+	models "github.com/Testzyler/banking-api/app/models"
 	"gorm.io/gorm"
 )
 

@@ -1,8 +1,8 @@
 package service
 
 import (
-	entities "github.com/Testzyler/banking-api/app/.entities"
-	models "github.com/Testzyler/banking-api/app/.models"
+	entities "github.com/Testzyler/banking-api/app/entities"
+	models "github.com/Testzyler/banking-api/app/models"
 	"github.com/Testzyler/banking-api/app/features/users/repository"
 )
 

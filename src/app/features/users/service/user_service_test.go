@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	entities "github.com/Testzyler/banking-api/app/.entities"
-	models "github.com/Testzyler/banking-api/app/.models"
+	entities "github.com/Testzyler/banking-api/app/entities"
+	models "github.com/Testzyler/banking-api/app/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
