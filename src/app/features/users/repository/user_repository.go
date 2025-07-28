@@ -11,6 +11,7 @@ type userRepository struct {
 type UserRepository interface {
 	GetByID(userID string) (*models.User, error)
 	GetAll(perPage, page int, search string) ([]*models.User, error)
+	GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error)
 }
 
 func NewUserRepository(db *gorm.DB) UserRepository {
@@ -35,4 +36,29 @@ func (r *userRepository) GetAll(perPage, page int, search string) ([]*models.Use
 	}
 
 	return users, nil
+}
+
+func (r *userRepository) GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error) {
+	var users []*models.User
+	var total int64
+
+	query := r.db.Model(&models.User{})
+
+	// Apply search filter if provided
+	if search != "" {
+		query = query.Where("name LIKE ? OR email LIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Get total count
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated results
+	err := query.Order("name ASC").Limit(perPage).Offset((page - 1) * perPage).Find(&users).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }

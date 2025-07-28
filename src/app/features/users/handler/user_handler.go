@@ -39,19 +39,9 @@ func (h *userHandler) GetUsers(c *fiber.Ctx) error {
 		return err
 	}
 
-	users, err := h.userService.GetAllUsers(params)
+	users, meta, err := h.userService.GetAllUsersWithMeta(params)
 	if err != nil {
 		return err
-	}
-
-	// Create pagination metadata (you'll need to update your service to return this info)
-	meta := entities.PaginationMeta{
-		Page:        params.Page,
-		PerPage:     params.PerPage,
-		Total:       len(users),
-		TotalPages:  1,
-		HasNext:     false,
-		HasPrevious: params.Page > 1,
 	}
 
 	return c.Status(http.StatusOK).JSON(&entities.PaginatedResponse{
@@ -66,6 +56,9 @@ func (h *userHandler) GetUsers(c *fiber.Ctx) error {
 func (h *userHandler) GetUser(c *fiber.Ctx) error {
 	var params entities.GetUserByIdParams
 	params.UserID = c.Params("id")
+	if err := params.Validate(); err != nil {
+		return err
+	}
 
 	user, err := h.userService.GetUserByID(params)
 	if err != nil {

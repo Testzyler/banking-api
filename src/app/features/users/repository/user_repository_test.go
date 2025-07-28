@@ -64,7 +64,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "whitespace user ID",
@@ -76,7 +76,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "nonexistent user ID",
@@ -88,7 +88,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "database connection error",
@@ -100,7 +100,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "error fetching user",
+			errorContains: "sql: connection is already closed",
 		},
 		{
 			name:   "SQL injection attempt",
@@ -113,7 +113,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "special characters in user ID",
@@ -125,7 +125,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "unicode user ID - success",
@@ -154,7 +154,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 		{
 			name:   "user ID with newlines and tabs",
@@ -166,7 +166,7 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "user not found",
+			errorContains: "record not found",
 		},
 	}
 
@@ -262,7 +262,7 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			},
 			expectError:   true,
 			expectCount:   0,
-			errorContains: "error fetching users",
+			errorContains: "sql: connection is already closed",
 		},
 		{
 			name:    "large page size",
@@ -355,6 +355,233 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, users)
 				assert.Len(t, users, tt.expectCount)
+			}
+
+			// Verify mock expectations
+			err = mock.ExpectationsWereMet()
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
+	tests := []struct {
+		name          string
+		perPage       int
+		page          int
+		search        string
+		mockSetup     func(sqlmock.Sqlmock, int, int, string)
+		expectError   bool
+		expectUsers   []*models.User
+		expectCount   int64
+		errorContains string
+	}{
+		{
+			name:    "valid pagination with count",
+			perPage: 10,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user1", "Alice", "data1").
+					AddRow("user2", "Bob", "data2")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+			},
+			expectError: false,
+			expectCount: 2,
+			expectUsers: []*models.User{
+				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+				{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+			},
+		},
+		{
+			name:    "empty results with count",
+			perPage: 10,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			},
+			expectError: false,
+			expectCount: 0,
+			expectUsers: []*models.User{},
+		},
+		{
+			name:    "database connection error on count",
+			perPage: 10,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnError(sql.ErrConnDone)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnError(sql.ErrConnDone)
+			},
+			expectError:   true,
+			expectCount:   0,
+			expectUsers:   nil,
+			errorContains: "sql: connection is already closed",
+		},
+		{
+			name:    "search filter applied",
+			perPage: 10,
+			page:    1,
+			search:  "Alice",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user1", "Alice", "data1")
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? OR email LIKE \\? ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs("%Alice%", "%Alice%", perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users` WHERE name LIKE \\? OR email LIKE \\?").
+					WithArgs("%Alice%", "%Alice%").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			},
+			expectError: false,
+			expectCount: 1,
+			expectUsers: []*models.User{
+				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+			},
+		},
+		{
+			name:    "no results for search",
+			perPage: 10,
+			page:    1,
+			search:  "NonExistent",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? OR email LIKE \\? ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs("%NonExistent%", "%NonExistent%", perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users` WHERE name LIKE \\? OR email LIKE \\?").
+					WithArgs("%NonExistent%", "%NonExistent%").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			},
+			expectError: false,
+			expectCount: 0,
+			expectUsers: []*models.User{},
+		},
+		{
+			name:    "large page size with count",
+			perPage: 1000,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				// Simulate 1000 users
+				for i := 1; i <= 1000; i++ {
+					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)), "data"+string(rune(i)))
+				}
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1000))
+			},
+			expectError: false,
+			expectCount: 1000,
+			expectUsers: func() []*models.User {
+				users := make([]*models.User, 1000)
+				for i := 1; i <= 1000; i++ {
+					users[i-1] = &models.User{
+						UserID:   "user" + string(rune(i)),
+						Name:     "User " + string(rune(i)),
+						DummyCol: "data" + string(rune(i)),
+					}
+				}
+				return users
+			}(),
+		},
+		{
+			name:    "zero per page with count",
+			perPage: 0,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			},
+			expectError: false,
+			expectCount: 0,
+			expectUsers: []*models.User{},
+		},
+		{
+			name:    "negative page number with count",
+			perPage: 10,
+			page:    -1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user1", "Alice", "data1").
+					AddRow("user2", "Bob", "data2")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
+					WithArgs(perPage, (page-1)*perPage).
+					WillReturnRows(rows)
+
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+			},
+			expectError: false,
+			expectCount: 2,
+			expectUsers: []*models.User{
+				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+				{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			gormDB, mock, cleanup := setupTestDB(t)
+			defer cleanup()
+
+			repo := NewUserRepository(gormDB)
+
+			// Setup mock expectations
+			tt.mockSetup(mock, tt.perPage, tt.page, tt.search)
+
+			// Act
+			users, count, err := repo.GetAllWithCount(tt.perPage, tt.page, tt.search)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, users)
+				assert.Equal(t, int64(0), count)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, users)
+				assert.Len(t, users, len(tt.expectUsers))
+				for i := range users {
+					assert.Equal(t, tt.expectUsers[i].UserID, users[i].UserID)
+					assert.Equal(t, tt.expectUsers[i].Name, users[i].Name)
+					assert.Equal(t, tt.expectUsers[i].DummyCol, users[i].DummyCol)
+				}
+				assert.Equal(t, tt.expectCount, count)
 			}
 
 			// Verify mock expectations

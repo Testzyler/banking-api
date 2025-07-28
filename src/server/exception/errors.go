@@ -5,7 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Predefined error responses that implement the error interface
+// Predefined error responses that implement the error interface (error_handler)
 var (
 	// 4xx Client Errors
 	ErrUserNotFound = &response.ErrorResponse{
