@@ -7,7 +7,7 @@ import (
 
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/database"
-	"github.com/Testzyler/banking-api/server/exceptions"
+	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -33,18 +33,7 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 		WriteTimeout:          config.Server.WriteTimeout,
 		IdleTimeout:           config.Server.IdleTimeout,
 		Concurrency:           config.Server.MaxConnections * 256 * 1024,
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			log.Printf("Error: %v", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(&response.ErrorResponse{
-				BaseResponse: response.BaseResponse{
-					Message: "Internal Server Error",
-				},
-				Error: response.ErrorDetail{
-					ErrorCode: exceptions.ErrCodeInternalServer,
-					Details:   "An unexpected error occurred",
-				},
-			})
-		},
+		ErrorHandler:          response.ErrorHandler, // Custom error handler
 	})
 
 	// Initialize database
@@ -69,7 +58,7 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 // Middleware
 func (s *Server) setupMiddleware() {
 	// Global error handling middleware
-	// s.App.Use(pkg.GlobalErrorMiddleware())
+	s.App.Use(middlewares.GlobalErrorMiddleware())
 
 	// Recovery middleware
 	s.App.Use(recover.New())
@@ -92,24 +81,22 @@ func (s *Server) setupRoutes() {
 	// Health check
 	api.Get("/healthz", func(c *fiber.Ctx) error {
 		if s.isShuttingDown {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(response.ErrorResponse{
-				Error: response.ErrorDetail{
-					ErrorCode: exceptions.ErrCodeServiceUnavailable,
-					Details:   "Service is unavailable",
-				},
+			return c.Status(fiber.StatusServiceUnavailable).JSON(&response.ErrorResponse{
+				Message: "Service is shutting down",
+				Code:    response.ErrCodeServiceUnavailable,
+				Details: "The service is currently shutting down and cannot process requests.",
 			})
 		}
 
 		healthData := map[string]interface{}{
 			"status":    "healthy",
-			"timestamp": time.Now().UTC(),
+			"timestamp": time.Now(),
 		}
 
-		return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
-			BaseResponse: response.BaseResponse{
-				Data:    healthData,
-				Message: "Health check successful",
-			},
+		return c.JSON(&response.SuccessResponse{
+			Message: "Service is healthy",
+			Code:    response.SuccessCodeOK,
+			Data:    healthData,
 		})
 	})
 
