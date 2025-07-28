@@ -2,16 +2,15 @@ package server
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/database"
+	"github.com/Testzyler/banking-api/logger"
 	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	userHandler "github.com/Testzyler/banking-api/app/features/users/handler"
@@ -28,7 +27,7 @@ type Server struct {
 
 func NewServer(ctx context.Context, config *config.Config) *Server {
 	app := fiber.New(fiber.Config{
-		DisableStartupMessage: false,
+		DisableStartupMessage: true,
 		ReadTimeout:           config.Server.ReadTimeout,
 		WriteTimeout:          config.Server.WriteTimeout,
 		IdleTimeout:           config.Server.IdleTimeout,
@@ -39,7 +38,7 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 	// Initialize database
 	db, err := database.NewDatabase(config)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("Failed to connect to database", "error", err)
 	}
 
 	server := &Server{
@@ -57,14 +56,14 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 
 // Middleware
 func (s *Server) setupMiddleware() {
-	// Global error handling middleware
-	s.App.Use(middlewares.GlobalErrorMiddleware())
+	// Request ID middleware
+	s.App.Use(middlewares.RequestIDMiddleware())
 
 	// Recovery middleware
 	s.App.Use(recover.New())
 
-	// Logger middleware
-	s.App.Use(logger.New())
+	// Custom Logger middleware with request ID
+	s.App.Use(middlewares.LoggerMiddleware())
 
 	// CORS middleware
 	s.App.Use(cors.New(cors.Config{
@@ -79,7 +78,7 @@ func (s *Server) setupRoutes() {
 	api := s.App.Group("/api/v1")
 
 	// Health check
-	api.Get("/healthz", func(c *fiber.Ctx) error {
+	s.App.Get("/healthz", func(c *fiber.Ctx) error {
 		if s.isShuttingDown {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(&response.ErrorResponse{
 				Message: "Service is shutting down",
@@ -125,19 +124,19 @@ func (s *Server) Shutdown() error {
 
 	// Shut down the Fiber application
 	if err := s.App.Shutdown(); err != nil {
-		log.Printf("Error shutting down HTTP server: %v", err)
+		logger.Error("Error shutting down HTTP server", "error", err)
 		shutdownErrors = append(shutdownErrors, err)
 	} else {
-		log.Println("HTTP server shutdown successfully")
+		logger.Info("HTTP server shutdown successfully")
 	}
 
 	// Close database connections
 	if s.DB != nil {
 		if err := s.DB.Close(); err != nil {
-			log.Printf("Error closing database: %v", err)
+			logger.Error("Error closing database", "error", err)
 			shutdownErrors = append(shutdownErrors, err)
 		} else {
-			log.Println("Database connections closed successfully")
+			logger.Info("Database connections closed successfully")
 		}
 	}
 

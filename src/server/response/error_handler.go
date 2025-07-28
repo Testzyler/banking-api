@@ -1,13 +1,15 @@
 package response
 
 import (
-	"log"
-
+	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/gofiber/fiber/v2"
 )
 
 func ErrorHandler(c *fiber.Ctx, err error) error {
-	log.Printf("Error: %v", err)
+	// Use request-scoped logger if available, otherwise fallback to global logger
+	requestLogger := middlewares.GetRequestLogger(c)
+	requestLogger.Errorw("Request error", "error", err, "path", c.Path())
+
 	// If the error is a fiber error, return it directly
 	if cErr, ok := err.(*fiber.Error); ok {
 		return c.Status(cErr.Code).JSON(&ErrorResponse{

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/users/service"
+	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 )
@@ -26,7 +27,10 @@ func NewUserHandler(router fiber.Router, userService service.UserService) {
 }
 
 func (h *userHandler) GetUsers(c *fiber.Ctx) error {
-	// Parse pagination parameters
+	// Get request logger with request ID
+	requestLogger := middlewares.GetRequestLogger(c)
+	requestLogger.Infof("Getting users list %v", "Fetching users with pagination")
+
 	var params entities.PaginationParams
 	params.Page, _ = strconv.Atoi(c.Query("page", "1"))
 	params.PerPage, _ = strconv.Atoi(c.Query("perPage", "10"))

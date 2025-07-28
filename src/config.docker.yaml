@@ -5,6 +5,7 @@ Server:
   IdleTimeout: 60s
   MaxConnections: 100
   ShutdownTimeout: 30  # Graceful shutdown timeout in seconds
+  Environment: production  # development, production
 
 Database:
   Host: mysql_db
@@ -14,3 +15,8 @@ Database:
   Name: banking
   MaxOpenConns: 100
   MaxIdleTimeInSecond: 30
+
+Logger:
+  Level: info           # debug, info, warn, error
+  LogColor: true        # true or false
+  LogJson: false        # true or false

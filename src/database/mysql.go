@@ -2,14 +2,14 @@ package database
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/database/migrations"
+	"github.com/Testzyler/banking-api/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 func NewMySQLDatabase(config *config.Config) (DatabaseInterface, error) {
@@ -22,7 +22,7 @@ func NewMySQLDatabase(config *config.Config) (DatabaseInterface, error) {
 	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: gormLogger.Default.LogMode(gormLogger.Warn),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -65,7 +65,10 @@ func (d *Database) RunMigrations() error {
 
 		// If migration doesn't exist, run it
 		if result.Error == gorm.ErrRecordNotFound {
-			log.Printf("Running migration %d: %s", migration.Number, migration.Name)
+			logger.Infof("Running migration %d: %s",
+				migration.Number,
+				migration.Name,
+			)
 
 			if err := migration.Forwards(d.DB); err != nil {
 				return fmt.Errorf("migration %d failed: %w", migration.Number, err)

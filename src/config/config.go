@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Server   *Server
 	Database *Database
+	Logger   *Logger
 }
 
 type Server struct {
@@ -19,6 +20,7 @@ type Server struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
+	Environment     string
 	MaxConnections  int
 	ShutdownTimeout int
 }
@@ -31,6 +33,12 @@ type Database struct {
 	Name                string
 	MaxOpenConns        int
 	MaxIdleTimeInSecond int
+}
+
+type Logger struct {
+	Level    string
+	LogColor bool
+	LogJson  bool
 }
 
 var (
@@ -73,6 +81,7 @@ func loadConfig(envFile string) *Config {
 			IdleTimeout:     viper.GetDuration("Server.IdleTimeout"),
 			MaxConnections:  viper.GetInt("Server.MaxConnections"),
 			ShutdownTimeout: viper.GetInt("Server.ShutdownTimeout"),
+			Environment:     viper.GetString("Server.Environment"),
 		},
 		Database: &Database{
 			Host:                viper.GetString("Database.Host"),
@@ -82,6 +91,11 @@ func loadConfig(envFile string) *Config {
 			Name:                viper.GetString("Database.Name"),
 			MaxOpenConns:        viper.GetInt("Database.MaxOpenConns"),
 			MaxIdleTimeInSecond: viper.GetInt("Database.MaxIdleTimeInSecond"),
+		},
+		Logger: &Logger{
+			Level:    viper.GetString("Logger.Level"),
+			LogColor: viper.GetBool("Logger.LogColor"),
+			LogJson:  viper.GetBool("Logger.LogJson"),
 		},
 	}
 }

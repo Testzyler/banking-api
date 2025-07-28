@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Testzyler/banking-api/config"
+	"github.com/Testzyler/banking-api/logger"
 	"github.com/Testzyler/banking-api/server"
 	"github.com/spf13/cobra"
 )
@@ -18,7 +18,7 @@ var wg sync.WaitGroup
 var httpServer *server.Server
 
 var serveCmd = &cobra.Command{
-	Use:   "serve",
+	Use:   "serve_api",
 	Short: "Serve the API",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Create root context with cancellation
@@ -28,19 +28,29 @@ var serveCmd = &cobra.Command{
 		// Load configuration
 		config := config.NewConfig(configFile)
 
-		// Start HTTP server
+		// Initialize logger
+		loggerConfig := &logger.LoggerConfig{
+			Level:       config.Logger.Level,
+			Environment: config.Server.Environment,
+			LogColor:    config.Logger.LogColor,
+			LogJson:     config.Logger.LogJson,
+		}
+		if err := logger.InitLogger(loggerConfig); err != nil {
+			panic("Failed to initialize logger: " + err.Error())
+		}
+		defer logger.SyncLogger()
+
+		logger.Info("Starting Banking API Server", "port", config.Server.Port, "environment", config.Server.Environment)
 		initHttpServer(ctx, config)
 
 		// Setup signal handling for graceful shutdown
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-		// Wait for shutdown signal or context cancellation
 		select {
 		case sig := <-quit:
-			log.Printf("Received shutdown signal: %v", sig)
+			logger.Info("Received shutdown signal", "signal", sig.String())
 		case <-ctx.Done():
-			log.Println("Application context cancelled")
+			logger.Info("Application context cancelled")
 		}
 
 		// Create shutdown context with timeout
@@ -51,33 +61,25 @@ var serveCmd = &cobra.Command{
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer shutdownCancel()
 
-		// Channel to track shutdown completion
 		shutdownComplete := make(chan struct{})
-
-		// Perform shutdown in goroutine
 		go func() {
 			defer close(shutdownComplete)
-
-			// Cancel the main context to signal all services to stop
 			cancel()
-
-			// Shutdown HTTP server
 			if httpServer != nil {
 				if err := httpServer.Shutdown(); err != nil {
-					log.Printf("Error during HTTP server shutdown: %v", err)
+					logger.Error("Error during HTTP server shutdown", "error", err)
 				}
 			}
 
-			// Wait for all goroutines to finish
 			wg.Wait()
 		}()
 
-		// Wait for either shutdown completion or timeout
+		logger.Info("Initiating graceful shutdown...")
 		select {
 		case <-shutdownComplete:
-			log.Println("Graceful shutdown completed successfully")
+			logger.Info("Graceful shutdown completed successfully")
 		case <-shutdownCtx.Done():
-			log.Printf("Shutdown timeout exceeded (%v), forcing exit", shutdownTimeout)
+			logger.Error("Shutdown timeout exceeded, forcing exit", "timeout", shutdownTimeout)
 			// Force exit if graceful shutdown takes too long
 			os.Exit(1)
 		}
@@ -92,13 +94,12 @@ func initHttpServer(ctx context.Context, config *config.Config) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
 		// Initialize server
 		httpServer = server.NewServer(ctx, config)
-		log.Printf("Starting HTTP server on port %s", config.Server.Port)
+		logger.Infof("HTTP server started on port %s", config.Server.Port)
 		err := httpServer.Start()
 		if err != nil {
-			log.Printf("Error starting HTTP server: %v", err)
+			logger.Errorf("Error starting HTTP server %d : %v", config.Server.Port, err)
 			return
 		}
 	}()
