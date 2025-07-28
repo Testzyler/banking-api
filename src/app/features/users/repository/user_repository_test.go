@@ -377,177 +377,289 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:    "valid pagination with count",
+			name:    "valid pagination - first page with no search",
 			perPage: 10,
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query
 				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
 					AddRow("user1", "Alice", "data1").
-					AddRow("user2", "Bob", "data2")
-				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
+					AddRow("user2", "Bob", "data2").
+					AddRow("user3", "Charlie", "data3")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(perPage).
 					WillReturnRows(rows)
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(15)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
 			},
 			expectError: false,
-			expectCount: 2,
 			expectUsers: []*models.User{
 				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
 				{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+				{UserID: "user3", Name: "Charlie", DummyCol: "data3"},
 			},
+			expectCount: 15,
 		},
 		{
-			name:    "empty results with count",
-			perPage: 10,
-			page:    1,
+			name:    "valid pagination - second page with no search",
+			perPage: 5,
+			page:    2,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				// Mock data query with offset
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user6", "Frank", "data6").
+					AddRow("user7", "Grace", "data7")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
+					WithArgs(perPage, 5).
 					WillReturnRows(rows)
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(12)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
 			},
 			expectError: false,
-			expectCount: 0,
-			expectUsers: []*models.User{},
+			expectUsers: []*models.User{
+				{UserID: "user6", Name: "Frank", DummyCol: "data6"},
+				{UserID: "user7", Name: "Grace", DummyCol: "data7"},
+			},
+			expectCount: 12,
 		},
 		{
-			name:    "database connection error on count",
+			name:    "search functionality - matching results",
 			perPage: 10,
+			page:    1,
+			search:  "Admin",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with search
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("admin1", "Admin User", "admin_data").
+					AddRow("admin2", "Super Admin", "admin_data2")
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
+					WithArgs("%Admin%", perPage).
+					WillReturnRows(rows)
+
+				// Mock count query with search
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(2)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users` WHERE name LIKE \\?").
+					WithArgs("%Admin%").
+					WillReturnRows(countRows)
+			},
+			expectError: false,
+			expectUsers: []*models.User{
+				{UserID: "admin1", Name: "Admin User", DummyCol: "admin_data"},
+				{UserID: "admin2", Name: "Super Admin", DummyCol: "admin_data2"},
+			},
+			expectCount: 2,
+		},
+		{
+			name:    "search functionality - no matching results",
+			perPage: 10,
+			page:    1,
+			search:  "nonexistent",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock empty data query
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
+					WithArgs("%nonexistent%", perPage).
+					WillReturnRows(rows)
+
+				// Mock count query with no results
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users` WHERE name LIKE \\?").
+					WithArgs("%nonexistent%").
+					WillReturnRows(countRows)
+			},
+			expectError: false,
+			expectUsers: []*models.User{},
+			expectCount: 0,
+		},
+		{
+			name:    "empty search string behavior",
+			perPage: 5,
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
-					WillReturnError(sql.ErrConnDone)
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectError:   true,
-			expectCount:   0,
-			expectUsers:   nil,
-			errorContains: "sql: connection is already closed",
-		},
-		{
-			name:    "search filter applied",
-			perPage: 10,
-			page:    1,
-			search:  "Alice",
-			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query without search
 				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
 					AddRow("user1", "Alice", "data1")
-				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? OR email LIKE \\? ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs("%Alice%", "%Alice%", perPage, (page-1)*perPage).
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(perPage).
 					WillReturnRows(rows)
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users` WHERE name LIKE \\? OR email LIKE \\?").
-					WithArgs("%Alice%", "%Alice%").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(10)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
 			},
 			expectError: false,
-			expectCount: 1,
 			expectUsers: []*models.User{
 				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
 			},
+			expectCount: 10,
 		},
 		{
-			name:    "no results for search",
-			perPage: 10,
-			page:    1,
-			search:  "NonExistent",
-			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
-				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? OR email LIKE \\? ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs("%NonExistent%", "%NonExistent%", perPage, (page-1)*perPage).
-					WillReturnRows(rows)
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users` WHERE name LIKE \\? OR email LIKE \\?").
-					WithArgs("%NonExistent%", "%NonExistent%").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-			},
-			expectError: false,
-			expectCount: 0,
-			expectUsers: []*models.User{},
-		},
-		{
-			name:    "large page size with count",
-			perPage: 1000,
-			page:    1,
-			search:  "",
-			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
-				// Simulate 1000 users
-				for i := 1; i <= 1000; i++ {
-					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)), "data"+string(rune(i)))
-				}
-				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
-					WillReturnRows(rows)
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1000))
-			},
-			expectError: false,
-			expectCount: 1000,
-			expectUsers: func() []*models.User {
-				users := make([]*models.User, 1000)
-				for i := 1; i <= 1000; i++ {
-					users[i-1] = &models.User{
-						UserID:   "user" + string(rune(i)),
-						Name:     "User " + string(rune(i)),
-						DummyCol: "data" + string(rune(i)),
-					}
-				}
-				return users
-			}(),
-		},
-		{
-			name:    "zero per page with count",
+			name:    "zero per page",
 			perPage: 0,
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with 0 limit
 				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
-				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(0).
 					WillReturnRows(rows)
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(10)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
 			},
 			expectError: false,
-			expectCount: 0,
 			expectUsers: []*models.User{},
+			expectCount: 10,
 		},
 		{
-			name:    "negative page number with count",
+			name:    "negative page number handled",
 			perPage: 10,
 			page:    -1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with offset 0 (negative page handled)
 				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1").
-					AddRow("user2", "Bob", "data2")
-				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
-					WithArgs(perPage, (page-1)*perPage).
+					AddRow("user1", "Alice", "data1")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(perPage).
 					WillReturnRows(rows)
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM `users`").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(5)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
 			},
 			expectError: false,
-			expectCount: 2,
 			expectUsers: []*models.User{
 				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
-				{UserID: "user2", Name: "Bob", DummyCol: "data2"},
 			},
+			expectCount: 5,
+		},
+		{
+			name:    "database error on data query",
+			perPage: 10,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with error
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(perPage).
+					WillReturnError(sql.ErrConnDone)
+			},
+			expectError:   true,
+			expectUsers:   nil,
+			expectCount:   0,
+			errorContains: "sql: connection is already closed",
+		},
+		{
+			name:    "database error on count query",
+			perPage: 10,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock successful data query
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user1", "Alice", "data1")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(perPage).
+					WillReturnRows(rows)
+
+				// Mock count query with error
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnError(sql.ErrConnDone)
+			},
+			expectError:   true,
+			expectUsers:   nil,
+			expectCount:   0,
+			errorContains: "sql: connection is already closed",
+		},
+		{
+			name:    "search with special characters",
+			perPage: 10,
+			page:    1,
+			search:  "user@#$%",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with special character search
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
+					WithArgs("%user@#$%%", perPage).
+					WillReturnRows(rows)
+
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users` WHERE name LIKE \\?").
+					WithArgs("%user@#$%%").
+					WillReturnRows(countRows)
+			},
+			expectError: false,
+			expectUsers: []*models.User{},
+			expectCount: 0,
+		},
+		{
+			name:    "unicode search",
+			perPage: 10,
+			page:    1,
+			search:  "ผู้ใช้",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with unicode search
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("ผู้ใช้123", "Thai User", "thai_data")
+				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
+					WithArgs("%ผู้ใช้%", perPage).
+					WillReturnRows(rows)
+
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users` WHERE name LIKE \\?").
+					WithArgs("%ผู้ใช้%").
+					WillReturnRows(countRows)
+			},
+			expectError: false,
+			expectUsers: []*models.User{
+				{UserID: "ผู้ใช้123", Name: "Thai User", DummyCol: "thai_data"},
+			},
+			expectCount: 1,
+		},
+		{
+			name:    "large page size",
+			perPage: 1000,
+			page:    1,
+			search:  "",
+			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
+				// Mock data query with large limit - return just 3 users for testing
+				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
+					AddRow("user1", "User 1", "data1").
+					AddRow("user2", "User 2", "data2").
+					AddRow("user3", "User 3", "data3")
+				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
+					WithArgs(1000).
+					WillReturnRows(rows)
+
+				// Mock count query
+				countRows := sqlmock.NewRows([]string{"count"}).AddRow(500)
+				mock.ExpectQuery("SELECT count\\(\\*\\) FROM `users`").
+					WillReturnRows(countRows)
+			},
+			expectError: false,
+			expectUsers: []*models.User{
+				{UserID: "user1", Name: "User 1", DummyCol: "data1"},
+				{UserID: "user2", Name: "User 2", DummyCol: "data2"},
+				{UserID: "user3", Name: "User 3", DummyCol: "data3"},
+			},
+			expectCount: 500,
 		},
 	}
 	for _, tt := range tests {

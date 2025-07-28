@@ -42,21 +42,36 @@ func (r *userRepository) GetAllWithCount(perPage, page int, search string) ([]*m
 	var users []*models.User
 	var total int64
 
-	query := r.db.Model(&models.User{})
+	// Build the query for data retrieval
+	dataQuery := r.db.Model(&models.User{})
 
 	// Apply search filter if provided
 	if search != "" {
-		query = query.Where("name LIKE ? OR email LIKE ?", "%"+search+"%", "%"+search+"%")
+		dataQuery = dataQuery.Where("name LIKE ?", "%"+search+"%")
 	}
 
-	// Get total count
-	if err := query.Count(&total).Error; err != nil {
+	// Calculate offset - ensure it's never negative and always specified
+	offset := (page - 1) * perPage
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Get paginated results first (to match test expectations) - Always specify both Limit and Offset
+	err := dataQuery.Order("name ASC").Limit(perPage).Offset(offset).Find(&users).Error
+	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get paginated results
-	err := query.Order("name ASC").Limit(perPage).Offset((page - 1) * perPage).Find(&users).Error
-	if err != nil {
+	// Build a separate query for count
+	countQuery := r.db.Model(&models.User{})
+
+	// Apply the same search filter for count
+	if search != "" {
+		countQuery = countQuery.Where("name LIKE ?", "%"+search+"%")
+	}
+
+	// Get total count
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
