@@ -49,19 +49,11 @@ func LoggerMiddleware() fiber.Handler {
 		requestLogger := logger.With("request_id", requestID)
 		c.Locals("logger", requestLogger)
 
-		// Use the SugaredLogger methods correctly
-		requestLogger.Infow("HTTP Request",
-			"method", c.Method(),
-			"path", c.Path(),
-			"ip", c.IP(),
-			"user_agent", c.Get("User-Agent"),
-		)
-
 		err := c.Next()
 		duration := time.Since(start)
 		status := c.Response().StatusCode()
 
-		// Use the request logger for response logging too
+		// Log the response with request ID
 		if status >= 500 {
 			requestLogger.Errorw("HTTP Response",
 				"method", c.Method(),

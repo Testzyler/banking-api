@@ -17,6 +17,7 @@ type ErrorResponse struct {
 	Code           ResponseCode `json:"code"`
 	Message        string       `json:"message"`
 	Details        interface{}  `json:"details,omitempty"`
+	Source         string       `json:"-"` // For logging purposes only, not returned to client
 }
 
 func (e *ErrorResponse) Error() string {
@@ -24,23 +25,4 @@ func (e *ErrorResponse) Error() string {
 		return fmt.Sprintf("%s: %v", e.Message, e.Details)
 	}
 	return e.Message
-}
-
-func NewException(code ResponseCode, message string, details ...interface{}) *ErrorResponse {
-	err := &ErrorResponse{
-		Code:    code,
-		Message: message,
-		Details: details,
-	}
-	if message == "" {
-		err.Message = CustomResponseMessages[code]
-	} else {
-		err.Message = fmt.Sprintf("%s: %s", CustomResponseMessages[code], message)
-	}
-
-	if details != nil {
-		err.Details = details
-	}
-
-	return err
 }

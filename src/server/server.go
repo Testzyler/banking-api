@@ -7,6 +7,7 @@ import (
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/database"
 	"github.com/Testzyler/banking-api/logger"
+	"github.com/Testzyler/banking-api/server/exception"
 	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
@@ -32,7 +33,7 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 		WriteTimeout:          config.Server.WriteTimeout,
 		IdleTimeout:           config.Server.IdleTimeout,
 		Concurrency:           config.Server.MaxConnections * 256 * 1024,
-		ErrorHandler:          response.ErrorHandler, // Custom error handler
+		ErrorHandler:          middlewares.ErrorHandler(), // Use the new error handler middleware
 	})
 
 	// Initialize database
@@ -62,9 +63,6 @@ func (s *Server) setupMiddleware() {
 	// Recovery middleware
 	s.App.Use(recover.New())
 
-	// Custom Logger middleware with request ID
-	s.App.Use(middlewares.LoggerMiddleware())
-
 	// CORS middleware
 	s.App.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
@@ -80,11 +78,7 @@ func (s *Server) setupRoutes() {
 	// Health check
 	s.App.Get("/healthz", func(c *fiber.Ctx) error {
 		if s.isShuttingDown {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(&response.ErrorResponse{
-				Message: "Service is shutting down",
-				Code:    response.ErrCodeServiceUnavailable,
-				Details: "The service is currently shutting down and cannot process requests.",
-			})
+			return exception.ErrServiceUnavailable
 		}
 
 		healthData := map[string]interface{}{
@@ -108,7 +102,7 @@ func (s *Server) setupRoutes() {
 	)
 
 	// Setup 404 handler
-	s.App.Use(response.NotFoundHandler)
+	s.App.Use(middlewares.NotFoundHandler)
 }
 
 func (s *Server) Start() error {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/users/service"
-	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 )
@@ -28,8 +27,8 @@ func NewUserHandler(router fiber.Router, userService service.UserService) {
 
 func (h *userHandler) GetUsers(c *fiber.Ctx) error {
 	// Get request logger with request ID
-	requestLogger := middlewares.GetRequestLogger(c)
-	requestLogger.Infof("Getting users list %v", "Fetching users with pagination")
+	// requestLogger := middlewares.GetRequestLogger(c)
+	// requestLogger.Infof("Getting users list with pagination")
 
 	var params entities.PaginationParams
 	params.Page, _ = strconv.Atoi(c.Query("page", "1"))
@@ -42,12 +41,7 @@ func (h *userHandler) GetUsers(c *fiber.Ctx) error {
 
 	users, err := h.userService.GetAllUsers(params)
 	if err != nil {
-		return &response.ErrorResponse{
-			HttpStatusCode: 500,
-			Code:           response.ErrCodeInternalServer,
-			Message:        "Failed to retrieve user",
-			Details:        err.Error(),
-		}
+		return err
 	}
 
 	// Create pagination metadata (you'll need to update your service to return this info)
@@ -75,16 +69,11 @@ func (h *userHandler) GetUser(c *fiber.Ctx) error {
 
 	user, err := h.userService.GetUserByID(params)
 	if err != nil {
-		return &response.ErrorResponse{
-			HttpStatusCode: 404,
-			Code:           response.ErrCodeNotFound,
-			Details:        err.Error(),
-		}
+		return err
 	}
 
 	return c.Status(http.StatusOK).JSON(&response.SuccessResponse{
 		Message: "User retrieved successfully",
 		Data:    user,
 	})
-
 }
