@@ -50,24 +50,15 @@
     - [ ] `POST /api/v1/auth/login` -  Login with account no
     - [ ] `POST /api/v1/auth/pin/validate` - validate pin
 
-2. **Transaction & UI APIs for Lazy Load**
-    - [ ] `GET /api/v1/users/greeting`
-    - [ ] `GET /api/v1/transactions`
-    - [ ] `GET /api/v1/banners`
-
-3. **Account & Debit card API**
-    - [ ] `GET /api/v1/cards`
-    - [ ] `GET /api/v1/accounts`
-    - [ ] `POST /api/v1/accounts/deposit`
-    - [ ] `POST /api/v1/accounts/withdrawal`
-    - [ ] `GET /api/v1/accounts/details` - Get all details in 1 API [transactions, banners, greeting msg, account details]
+2. **Dashboard API**
+    - [x] `GET /api/v1/dashboard/accounts`
 
 ### Phase 3: Security and Middleware
 1. **Authentication & Authorization**
    - [ ] Implement JWT token authentication with refresh tokens
-   - [ ] Add request validation middleware
+   - [x] Add request validators ~~middleware~~
    - [ ] Implement rate limiting (especially for PIN attempts)
-   - [ ] Add CORS configuration
+   - [x] Add CORS configuration
    - [ ] Implement session management
 
 2. **PIN Security Implementation**

@@ -1,7 +1,7 @@
 package entities
 
 import (
-	"github.com/Testzyler/banking-api/utils"
+	"github.com/Testzyler/banking-api/app/validators"
 )
 
 type DashboardParams struct {
@@ -9,7 +9,7 @@ type DashboardParams struct {
 }
 
 func (p *DashboardParams) Validate() error {
-	return utils.ValidateStruct(p)
+	return validators.ValidateStruct(p)
 }
 
 type DashboardResponse struct {
