@@ -9,7 +9,6 @@ import (
 // ErrorHandler
 func ErrorHandler() fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
-		// Get request logger if available
 		requestLogger := GetRequestLogger(c)
 
 		// Check if it's a custom error response type
@@ -33,9 +32,8 @@ func ErrorHandler() fiber.ErrorHandler {
 			})
 		}
 
-		// Unexpected error - log and return generic error
-		requestLogger.Errorf("Unexpected error: %v", err)
-		return c.Status(exception.ErrInternalServer.HttpStatusCode).JSON(exception.ErrInternalServer)
+		responseError := exception.NewInternalError(err)
+		return c.Status(responseError.HttpStatusCode).JSON(responseError)
 	}
 }
 

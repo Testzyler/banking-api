@@ -1,8 +1,6 @@
 package middlewares
 
 import (
-	"time"
-
 	"github.com/Testzyler/banking-api/logger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -43,39 +41,46 @@ func GetRequestID(c *fiber.Ctx) string {
 // LoggerMiddleware creates a middleware that logs HTTP requests with request ID
 func LoggerMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		start := time.Now()
+		// start := time.Now()
 
 		requestID := GetRequestID(c)
 		requestLogger := logger.With("request_id", requestID)
 		c.Locals("logger", requestLogger)
 
+		requestLogger.Infow("HTTP Request",
+			"method", c.Method(),
+			"path", c.Path(),
+			"body", c.Body(),
+			"headers", c.GetReqHeaders(),
+		)
+
 		err := c.Next()
-		duration := time.Since(start)
-		status := c.Response().StatusCode()
+		// duration := time.Since(start)
+		// status := c.Response().StatusCode()
 
 		// Log the response with request ID
-		if status >= 500 {
-			requestLogger.Errorw("HTTP Response",
-				"method", c.Method(),
-				"path", c.Path(),
-				"status", status,
-				"duration_ms", duration.Milliseconds(),
-			)
-		} else if status >= 400 {
-			requestLogger.Warnw("HTTP Response",
-				"method", c.Method(),
-				"path", c.Path(),
-				"status", status,
-				"duration_ms", duration.Milliseconds(),
-			)
-		} else {
-			requestLogger.Infow("HTTP Response",
-				"method", c.Method(),
-				"path", c.Path(),
-				"status", status,
-				"duration_ms", duration.Milliseconds(),
-			)
-		}
+		// if status >= 500 {
+		// 	requestLogger.Errorw("HTTP Response",
+		// 		"method", c.Method(),
+		// 		"path", c.Path(),
+		// 		"status", status,
+		// 		"duration_ms", duration.Milliseconds(),
+		// 	)
+		// } else if status >= 400 {
+		// 	requestLogger.Warnw("HTTP Response",
+		// 		"method", c.Method(),
+		// 		"path", c.Path(),
+		// 		"status", status,
+		// 		"duration_ms", duration.Milliseconds(),
+		// 	)
+		// } else {
+		// 	requestLogger.Infow("HTTP Response",
+		// 		"method", c.Method(),
+		// 		"path", c.Path(),
+		// 		"status", status,
+		// 		"duration_ms", duration.Milliseconds(),
+		// 	)
+		// }
 
 		return err
 	}

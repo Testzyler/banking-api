@@ -9,3 +9,9 @@ type GetUserByIdParams struct {
 func (p *GetUserByIdParams) Validate() error {
 	return utils.ValidateStruct(p)
 }
+
+type User struct {
+	UserID   string `json:"userID"`
+	Name     string `json:"name"`
+	Greeting string `json:"greeting"`
+}

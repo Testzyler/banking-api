@@ -33,7 +33,7 @@ func (s *userService) GetUserByID(params entities.GetUserByIdParams) (*models.Us
 		if err == gorm.ErrRecordNotFound {
 			return nil, exception.NewUserNotFoundError(params.UserID)
 		}
-		return nil, exception.NewInternalError("user_service.GetUserByID")
+		return nil, exception.NewInternalError(err)
 	}
 
 	return user, nil
@@ -42,7 +42,7 @@ func (s *userService) GetUserByID(params entities.GetUserByIdParams) (*models.Us
 func (s *userService) GetAllUsers(paginationParams entities.PaginationParams) ([]*models.User, error) {
 	users, err := s.userRepo.GetAll(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
 	if err != nil {
-		return nil, exception.NewInternalError("user_service.GetAllUsers")
+		return nil, exception.NewInternalError(err)
 	}
 
 	return users, nil
@@ -51,7 +51,7 @@ func (s *userService) GetAllUsers(paginationParams entities.PaginationParams) ([
 func (s *userService) GetAllUsersWithMeta(paginationParams entities.PaginationParams) ([]*models.User, entities.PaginationMeta, error) {
 	users, total, err := s.userRepo.GetAllWithCount(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
 	if err != nil {
-		return nil, entities.PaginationMeta{}, exception.NewInternalError("user_service.GetAllUsersWithMeta")
+		return nil, entities.PaginationMeta{}, exception.NewInternalError(err)
 	}
 
 	// Calculate pagination metadata

@@ -1,9 +1,9 @@
 package models
 
 type User struct {
-	UserID   string `json:"user_id" gorm:"column:user_id;primaryKey"`
-	Name     string `json:"name" gorm:"column:name"`
-	DummyCol string `json:"dummy_col_1,omitempty" gorm:"column:dummy_col_1"`
+	UserID   string `gorm:"column:user_id;primaryKey"`
+	Name     string `gorm:"column:name"`
+	DummyCol string `gorm:"column:dummy_col_1"`
 }
 
 func (User) TableName() string {
@@ -11,9 +11,9 @@ func (User) TableName() string {
 }
 
 type UserGreeting struct {
-	UserID   string `json:"user_id" gorm:"column:user_id;primaryKey"`
-	Greeting string `json:"greeting" gorm:"column:greeting"`
-	DummyCol string `json:"dummy_col_2,omitempty" gorm:"column:dummy_col_2"`
+	UserID   string `gorm:"column:user_id;primaryKey"`
+	Greeting string `gorm:"column:greeting"`
+	DummyCol string `gorm:"column:dummy_col_2"`
 }
 
 func (UserGreeting) TableName() string {

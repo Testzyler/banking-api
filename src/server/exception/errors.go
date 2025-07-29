@@ -92,12 +92,20 @@ func NewValidationError(details interface{}) *response.ErrorResponse {
 	}
 }
 
-func NewInternalError(source string) *response.ErrorResponse {
+func NewInternalError(err error) *response.ErrorResponse {
 	return &response.ErrorResponse{
 		HttpStatusCode: fiber.StatusInternalServerError,
 		Code:           response.ErrCodeInternalServer,
 		Message:        "Internal server error",
-		Details:        "An unexpected error occurred while processing your request",
-		Source:         source, // For logging only
+		Details:        err.Error(),
+	}
+}
+
+func NewDatabaseError(err error) *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusInternalServerError,
+		Code:           response.ErrCodeDatabaseError,
+		Message:        "Database error",
+		Details:        err.Error(),
 	}
 }
