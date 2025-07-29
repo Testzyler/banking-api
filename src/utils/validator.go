@@ -37,6 +37,13 @@ func ValidateStruct(s interface{}) error {
 				message = fmt.Sprintf("%s must be a valid UUID", err.Field())
 			case "len":
 				message = fmt.Sprintf("%s must be exactly %s characters", err.Field(), err.Param())
+			// Custom validation error messages
+			case "account_number":
+				message = fmt.Sprintf("%s must be exactly 12 digits", err.Field())
+			case "phone_th":
+				message = fmt.Sprintf("%s must be a valid Thai phone number (format: +66xxxxxxxxx, 10-12 digits after +)", err.Field())
+			case "strong_password":
+				message = fmt.Sprintf("%s must be at least 8 characters long and contain uppercase, lowercase, digit, and special character", err.Field())
 			default:
 				message = fmt.Sprintf("%s is invalid", err.Field())
 			}
@@ -87,10 +94,10 @@ func RegisterCustomValidations() {
 	validate.RegisterValidation("phone_th", func(fl validator.FieldLevel) bool {
 		phone := fl.Field().String()
 		// Basic TH phone validation (starts with +, 10-12 digits)
-		if len(phone) < 10 || len(phone) > 12 {
+		if len(phone) < 11 || len(phone) > 13 {
 			return false
 		}
-		if phone[0] != '+' {
+		if len(phone) == 0 || phone[0] != '+' {
 			return false
 		}
 		for _, char := range phone[1:] {
