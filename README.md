@@ -4,7 +4,7 @@
 
 ### 1. Database Schema
 
-**Core Entities**
+**Core models**
 - `users` - ข้อมูลทั่วไปของ user
 - `accounts` - บัญชีธนาคารของ user
 - `account_balances` - ยอดเงินคงเหลือ assume เป็นแบบ real-time
@@ -32,16 +32,17 @@
 <!-- **Priority: Critical | Est. time: 1-2 days** -->
 
 1. **Project Structure Setup**
-    - [ ] Setup project structure with clean architecture
-    - [ ] Configure environment-specific settings
-    - [ ] Implement logging and monitoring
+    - [x] Setup project structure with clean architecture
+    - [x] Configure environment-specific settings
+    - [x] Implement logging (ZAP Logger)
+    - [x] Error handling
 2. **Database Integration**
-    - [ ] Set up database connection pool
-    - [ ] Create data access layer (Repository pattern)
+    - [x] Set up database connection pool
+    - [x] Create data access layer (Repository pattern)
 3. **Docker Configuration**
-    - [ ] Create Dockerfile for the application
-    - [ ] Set up docker-compose
-    - [ ] Set up environment variable management
+    - [x] Create Dockerfile for the application
+    - [x] Set up docker-compose
+    - [x] Set up environment variable management
 
 ### Phase 2: Core API Development
 <!-- **Priority: Critical | Est. time: 3-4 days** -->
@@ -53,7 +54,6 @@
     - [ ] `GET /api/v1/users/greeting`
     - [ ] `GET /api/v1/transactions`
     - [ ] `GET /api/v1/banners`
-
 
 3. **Account & Debit card API**
     - [ ] `GET /api/v1/cards`
