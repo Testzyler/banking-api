@@ -13,6 +13,7 @@ type Config struct {
 	Server   *Server
 	Database *Database
 	Logger   *Logger
+	Auth     *AuthConfig
 }
 
 type Server struct {
@@ -39,6 +40,24 @@ type Logger struct {
 	Level    string
 	LogColor bool
 	LogJson  bool
+}
+
+type AuthConfig struct {
+	Jwt *JwtConfig
+	Pin *PinConfig
+}
+
+type JwtConfig struct {
+	AccessTokenSecret  string
+	RefreshTokenSecret string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration
+}
+
+type PinConfig struct {
+	BaseDuration    time.Duration
+	LockThreshold   int
+	MaxLockDuration time.Duration
 }
 
 var (
@@ -97,5 +116,22 @@ func loadConfig(envFile string) *Config {
 			LogColor: viper.GetBool("Logger.LogColor"),
 			LogJson:  viper.GetBool("Logger.LogJson"),
 		},
+		Auth: &AuthConfig{
+			Jwt: &JwtConfig{
+				AccessTokenSecret:  viper.GetString("Jwt.AccessTokenSecret"),
+				RefreshTokenSecret: viper.GetString("Jwt.RefreshTokenSecret"),
+				AccessTokenExpiry:  time.Duration(viper.GetInt("Jwt.AccessTokenExpiry")) * time.Minute,
+				RefreshTokenExpiry: time.Duration(viper.GetInt("Jwt.RefreshTokenExpiry")) * 24 * time.Hour,
+			},
+			Pin: &PinConfig{
+				BaseDuration:    time.Duration(viper.GetInt("Pin.BaseDuration")) * time.Second,
+				LockThreshold:   viper.GetInt("Pin.LockThreshold"),
+				MaxLockDuration: time.Duration(viper.GetInt("Pin.MaxLockDuration")) * time.Second,
+			},
+		},
 	}
+}
+
+func GetConfig() *Config {
+	return config
 }

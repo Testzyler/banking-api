@@ -3,6 +3,7 @@ package dashboard
 import (
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/dashboard/service"
+	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 )
@@ -17,7 +18,7 @@ func NewDashboardHandler(router fiber.Router, service service.DashboardService) 
 	}
 
 	dashboard := router.Group("/dashboard")
-	dashboard.Get("/accounts", handler.GetDashboardData)
+	dashboard.Get("/accounts", middlewares.AuthMiddleware(), handler.GetDashboardData)
 }
 
 func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error {

@@ -1,6 +1,8 @@
 package entities
 
-import "github.com/Testzyler/banking-api/app/validators"
+import (
+	"github.com/Testzyler/banking-api/app/validators"
+)
 
 type GetUserByIdParams struct {
 	UserID string `json:"user_id" validate:"required,min=3,max=50"`

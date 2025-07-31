@@ -1,6 +1,11 @@
 package routes
 
 import (
+	authHandler "github.com/Testzyler/banking-api/app/features/auth/handler"
+	authRepository "github.com/Testzyler/banking-api/app/features/auth/repository"
+	authService "github.com/Testzyler/banking-api/app/features/auth/service"
+	"github.com/Testzyler/banking-api/config"
+
 	userHandler "github.com/Testzyler/banking-api/app/features/users/handler"
 	userRepository "github.com/Testzyler/banking-api/app/features/users/repository"
 	userService "github.com/Testzyler/banking-api/app/features/users/service"
@@ -26,6 +31,16 @@ func InitHandlers(api fiber.Router, db database.DatabaseInterface) {
 		api,
 		dashboardService.NewDashboardService(
 			dashboardRepository.NewDashboardRepository(db.GetDB()),
+		),
+	)
+
+	// Register Auth handler
+	authHandler.NewAuthHandler(
+		api,
+		authService.NewAuthService(
+			authRepository.NewAuthRepository(db.GetDB()),
+			authService.NewJwtService(config.GetConfig()),
+			config.GetConfig(),
 		),
 	)
 }

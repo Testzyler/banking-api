@@ -1,12 +1,36 @@
 package exception
 
 import (
+	"fmt"
+
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 )
 
 // Predefined error responses that implement the error interface (error_handler)
 var (
+	// PIN errors
+	ErrPinLocked = &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "PIN locked",
+		Details:        "The PIN is locked. Please try again in",
+	}
+
+	ErrPinExpired = &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "PIN expired",
+		Details:        "The PIN has expired. Please try again",
+	}
+
+	ErrInvalidPin = &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "Invalid PIN",
+		Details:        "The PIN is incorrect. Please try again",
+	}
+
 	// 4xx Client Errors
 	ErrUserNotFound = &response.ErrorResponse{
 		HttpStatusCode: fiber.StatusNotFound,
@@ -107,5 +131,23 @@ func NewDatabaseError(err error) *response.ErrorResponse {
 		Code:           response.ErrCodeDatabaseError,
 		Message:        "Database error",
 		Details:        err.Error(),
+	}
+}
+
+func NewPinLockedError(remainingTime string) *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        ErrPinLocked.Message,
+		Details:        fmt.Sprintf("%s %s", ErrPinLocked.Details, remainingTime),
+	}
+}
+
+func NewInvalidPinError(remainingAttempts int) *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "Invalid PIN",
+		Details:        fmt.Sprintf("The PIN is incorrect. %d attempts remaining before lock", remainingAttempts),
 	}
 }

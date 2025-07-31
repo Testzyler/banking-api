@@ -54,26 +54,35 @@
     - [x] `GET /api/v1/dashboard/accounts`
 
 ### Phase 3: Security and Middleware
+| Failed Attempts | Lock Duration |
+| --------------- | ------------- |
+| 1–2             | 0             |
+| 3               | 10s           |
+| 4               | 20s           |
+| 5               | 40s           |
+| 6               | 80s           |
+| 7               | 160s          |
+| 8               | 300s (maxed)  |
+
 1. **Authentication & Authorization**
-   - [ ] Implement JWT token authentication with refresh tokens
-   - [x] Add request validators ~~middleware~~
-   - [ ] Implement rate limiting (especially for PIN attempts)
+   - [x] Implement JWT token authentication with refresh tokens
+   - [x] Add request validators
+   - [x] Implement rate limiting (especially for PIN attempts)
    - [x] Add CORS configuration
-   - [ ] Implement session management
 
 2. **PIN Security Implementation**
-   - [ ] Secure PIN storage using bcrypt/argon2 hashing
-   - [ ] PIN attempt tracking and lockout mechanism
-   - [ ] Implement PIN requirements (6-digit numeric)
-   - [ ] Add PIN aging
-   - [ ] PIN brute-force protection with exponential backoff
+   - [x] Secure PIN storage using bcrypt hashing
+   - [x] PIN attempt tracking and lockout mechanism
+   - [x] Implement PIN requirements (6-digit numeric)
+   - [x] Add PIN aging
+   - [x] PIN brute-force protection with exponential backoff
 
 3. **Data Validation**
-   - [ ] Input validation for all endpoints
-   - [ ] Sanitization of user inputs
-   - [ ] Request/response logging
-   - [ ] Error handling middleware
-   - [ ] PIN format validation and strength checking
+   - [x] Input validation for all endpoints
+   - [x] Sanitization of user inputs
+   - [x] Middleware logging
+   - [x] Error handling middleware
+   - [x] PIN format validation and strength checking
 
 ### Phase 4: Testing 
 1. **Unit Testing**
@@ -98,6 +107,6 @@
     - [ ] API usage examples
 
 2. **Deployment Preparation**
-    - [ ] Production Docker configuration
-    - [ ] Environment-specific configurations
-    - [ ] Health check endpoints
+    - [x] Production Docker configuration
+    - [x] Environment-specific configurations
+    - [x] Health check endpoints

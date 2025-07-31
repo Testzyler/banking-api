@@ -35,6 +35,8 @@ func ValidateStruct(s interface{}) error {
 				message = fmt.Sprintf("%s must be a valid UUID", getFieldName(err.Field()))
 			case "len":
 				message = fmt.Sprintf("%s must be exactly %s characters", getFieldName(err.Field()), err.Param())
+			case "numeric":
+				message = fmt.Sprintf("%s must be a number", getFieldName(err.Field()))
 			// Custom validation error messages
 			case "account_number":
 				message = fmt.Sprintf("%s must be exactly 12 digits", getFieldName(err.Field()))
