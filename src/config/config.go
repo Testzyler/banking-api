@@ -124,9 +124,9 @@ func loadConfig(envFile string) *Config {
 				RefreshTokenExpiry: time.Duration(viper.GetInt("Jwt.RefreshTokenExpiry")) * 24 * time.Hour,
 			},
 			Pin: &PinConfig{
-				BaseDuration:    time.Duration(viper.GetInt("Pin.BaseDuration")) * time.Second,
+				BaseDuration:    viper.GetDuration("Pin.BaseDuration"),
 				LockThreshold:   viper.GetInt("Pin.LockThreshold"),
-				MaxLockDuration: time.Duration(viper.GetInt("Pin.MaxLockDuration")) * time.Second,
+				MaxLockDuration: viper.GetDuration("Pin.MaxLockDuration"),
 			},
 		},
 	}
