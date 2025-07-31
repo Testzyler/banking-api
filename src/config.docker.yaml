@@ -5,7 +5,7 @@ Server:
   IdleTimeout: 60s
   MaxConnections: 100
   ShutdownTimeout: 30  # Graceful shutdown timeout in seconds
-  Environment: production  # development, production
+  Environment: development  # development, production
 
 Database:
   Host: mysql_db

@@ -1,8 +1,8 @@
 package entities
 
 import (
+	"github.com/Testzyler/banking-api/app/validators"
 	"github.com/Testzyler/banking-api/server/response"
-	"github.com/Testzyler/banking-api/utils"
 )
 
 type PaginationParams struct {
@@ -12,7 +12,7 @@ type PaginationParams struct {
 }
 
 func (p *PaginationParams) Validate() error {
-	return utils.ValidateStruct(p)
+	return validators.ValidateStruct(p)
 }
 
 type PaginatedResponse struct {

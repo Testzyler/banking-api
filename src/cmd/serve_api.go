@@ -8,10 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Testzyler/banking-api/app/validators"
 	"github.com/Testzyler/banking-api/config"
 	"github.com/Testzyler/banking-api/logger"
 	"github.com/Testzyler/banking-api/server"
-	"github.com/Testzyler/banking-api/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +42,7 @@ var serveCmd = &cobra.Command{
 		defer logger.SyncLogger()
 
 		// Initialize custom validations
-		utils.RegisterCustomValidations()
+		validators.RegisterCustomValidations()
 
 		// Start the HTTP server
 		logger.Info("Starting Banking API Server", "port", config.Server.Port, "environment", config.Server.Environment)

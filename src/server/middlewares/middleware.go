@@ -9,10 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// RequestIDMiddleware generates a unique request ID for each incoming request
 func RequestIDMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Check if request ID is already present in headers
 		requestID := c.Get("X-Request-ID")
 
 		if requestID == "" {
@@ -23,10 +21,10 @@ func RequestIDMiddleware() fiber.Handler {
 			requestID = uuid.String()
 		}
 
-		// Set the request ID in the context for use in handlers
+		// use in handlers
 		c.Locals("requestID", requestID)
 
-		// Set the request ID in response headers for clients
+		// for clients
 		c.Set("X-Request-ID", requestID)
 
 		return c.Next()
@@ -40,7 +38,6 @@ func GetRequestID(c *fiber.Ctx) string {
 	return ""
 }
 
-// LoggerMiddleware creates a middleware that logs HTTP requests with request ID
 func LoggerMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
@@ -53,27 +50,26 @@ func LoggerMiddleware() fiber.Handler {
 		duration := time.Since(start)
 		status := c.Response().StatusCode()
 
-		// Log the response with request ID
 		if status >= 500 {
 			requestLogger.Errorw("HTTP Response",
 				"method", c.Method(),
 				"path", c.Path(),
 				"status", status,
-				"duration_ms", duration.Milliseconds(),
+				"duration", duration,
 			)
 		} else if status >= 400 {
 			requestLogger.Warnw("HTTP Response",
 				"method", c.Method(),
 				"path", c.Path(),
 				"status", status,
-				"duration_ms", duration.Milliseconds(),
+				"duration", duration,
 			)
 		} else {
 			requestLogger.Infow("HTTP Response",
 				"method", c.Method(),
 				"path", c.Path(),
 				"status", status,
-				"duration_ms", duration.Milliseconds(),
+				"duration", duration,
 			)
 		}
 
@@ -81,7 +77,6 @@ func LoggerMiddleware() fiber.Handler {
 	}
 }
 
-// GetRequestLogger returns the request-scoped logger with request ID
 func GetRequestLogger(c *fiber.Ctx) *zap.SugaredLogger {
 	if requestLogger, ok := c.Locals("logger").(*zap.SugaredLogger); ok {
 		return requestLogger

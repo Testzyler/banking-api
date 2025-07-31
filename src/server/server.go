@@ -10,13 +10,10 @@ import (
 	"github.com/Testzyler/banking-api/server/exception"
 	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
+	handlers "github.com/Testzyler/banking-api/server/routes"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-
-	userHandler "github.com/Testzyler/banking-api/app/features/users/handler"
-	userRepository "github.com/Testzyler/banking-api/app/features/users/repository"
-	userService "github.com/Testzyler/banking-api/app/features/users/service"
 )
 
 type Server struct {
@@ -60,6 +57,9 @@ func (s *Server) setupMiddleware() {
 	// Request ID middleware
 	s.App.Use(middlewares.RequestIDMiddleware())
 
+	// Logger middleware
+	s.App.Use(middlewares.LoggerMiddleware())
+
 	// Recovery middleware
 	s.App.Use(recover.New())
 
@@ -72,9 +72,6 @@ func (s *Server) setupMiddleware() {
 }
 
 func (s *Server) setupRoutes() {
-	// API routes
-	api := s.App.Group("/api/v1")
-
 	// Health check
 	s.App.Get("/healthz", func(c *fiber.Ctx) error {
 		if s.isShuttingDown {
@@ -92,14 +89,11 @@ func (s *Server) setupRoutes() {
 			Data:    healthData,
 		})
 	})
+	// API routes
+	api := s.App.Group("/api/v1")
 
-	// Register User handler
-	userHandler.NewUserHandler(
-		api,
-		userService.NewUserService(
-			userRepository.NewUserRepository(s.DB.GetDB()),
-		),
-	)
+	// Initialize handlers
+	handlers.InitHandlers(api, s.DB)
 
 	// Setup 404 handler
 	s.App.Use(middlewares.NotFoundHandler)
