@@ -166,7 +166,7 @@ Base URL: `http://localhost:8080`
 Authenticate user using their PIN and receive JWT tokens.
 
 ```http
-POST /auth/verify-pin
+POST /api/v1/auth/verify-pin
 ```
 
 **Request Body:**
@@ -199,7 +199,7 @@ POST /auth/verify-pin
 Get new access token using refresh token.
 
 ```http
-POST /auth/refresh
+POST /api/v1/auth/refresh
 ```
 
 **Request Body:**
@@ -216,7 +216,7 @@ POST /auth/refresh
 Retrieve user's banking dashboard information including accounts, balances, and cards.
 
 ```http
-GET /dashboard/accounts
+GET /api/v1/dashboard/accounts
 ```
 
 **Headers:**
@@ -264,18 +264,6 @@ Authorization: Bearer {access_token}
 }
 ```
 
-#### HTTP Status Codes
-
-| Status Code | Description |
-| :---------- | :---------- |
-| `200`       | Success |
-| `400`       | Bad Request |
-| `401`       | Unauthorized |
-| `403`       | Forbidden |
-| `404`       | Not Found |
-| `500`       | Internal Server Error |
-
-
 ### User Endpoints
 
 #### Get All Users
@@ -283,7 +271,7 @@ Authorization: Bearer {access_token}
 Retrieve paginated list of users with search functionality.
 
 ```http
-GET /users?page=1&perPage=10
+GET /api/v1/users?page=1&perPage=10
 ```
 
 | Parameter | Type     | Description                        |
@@ -313,12 +301,24 @@ GET /users?page=1&perPage=10
 Retrieve specific user information.
 
 ```http
-GET /users/{id}
+GET /api/v1/users/{id}
 ```
 
 | Parameter | Type     | Description                       |
 | :-------- | :------- | :-------------------------------- |
 | `id`      | `string` | **Required**. User ID to fetch   |
+
+
+#### HTTP Status Codes
+
+| Status Code | Description |
+| :---------- | :---------- |
+| `200`       | Success |
+| `400`       | Bad Request |
+| `401`       | Unauthorized |
+| `403`       | Forbidden |
+| `404`       | Not Found |
+| `500`       | Internal Server Error |
 
 
 ## Database Schema
