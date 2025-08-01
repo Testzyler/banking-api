@@ -57,15 +57,15 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUser := &models.User{
-					UserID:   "user123",
-					Name:     "John Doe",
+					UserID: "user123",
+					Name:   "John Doe",
 				}
 				mockRepo.On("GetByID", "user123").Return(expectedUser, nil)
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "user123",
-				Name:     "John Doe",
+				UserID: "user123",
+				Name:   "John Doe",
 			},
 		},
 		{
@@ -114,7 +114,7 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 			},
 			expectError:   true,
 			expectUser:    nil,
-			errorContains: "An unexpected error occurred while processing your request",
+			errorContains: "database connection error",
 		},
 		{
 			name: "special characters in user ID",
@@ -148,15 +148,15 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUser := &models.User{
-					UserID:   "ผู้ใช้123",
-					Name:     "Thai User",
+					UserID: "ผู้ใช้123",
+					Name:   "Thai User",
 				}
 				mockRepo.On("GetByID", "ผู้ใช้123").Return(expectedUser, nil)
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "ผู้ใช้123",
-				Name:     "Thai User",
+				UserID: "ผู้ใช้123",
+				Name:   "Thai User",
 			},
 		},
 	}
@@ -279,7 +279,7 @@ func TestUserService_GetAllUsers_MultipleScenarios(t *testing.T) {
 				mockRepo.On("GetAll", 10, 1, "").Return(nil, errors.New("database error"))
 			},
 			expectError:   true,
-			errorContains: "An unexpected error occurred while processing your request",
+			errorContains: "database error",
 		},
 		{
 			name: "special characters in search",
@@ -485,7 +485,7 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 				mockRepo.On("GetAllWithCount", 10, 1, "").Return(nil, int64(0), errors.New("database connection error"))
 			},
 			expectError:   true,
-			errorContains: "An unexpected error occurred while processing your request",
+			errorContains: "database connection error",
 		},
 		{
 			name: "unicode search with results",

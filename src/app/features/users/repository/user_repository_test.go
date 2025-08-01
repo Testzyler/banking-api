@@ -49,8 +49,8 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "user123",
-				Name:     "John Doe",
+				UserID: "user123",
+				Name:   "John Doe",
 			},
 		},
 		{
@@ -138,8 +138,8 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "ผู้ใช้123",
-				Name:     "Thai User",
+				UserID: "ผู้ใช้123",
+				Name:   "Thai User",
 			},
 		},
 		{
@@ -270,7 +270,7 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				// Simulate 1000 users
 				for i := 1; i <= 1000; i++ {
-					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)), "data"+string(rune(i)))
+					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)))
 				}
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
