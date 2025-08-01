@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/Testzyler/banking-api/app/features/auth/handler/auth_handler.go (81.8%)</option>
+				<option value="file0">github.com/Testzyler/banking-api/app/features/auth/handler/auth_handler.go (77.3%)</option>
 				
 				<option value="file1">github.com/Testzyler/banking-api/app/features/auth/repository/auth_repository.go (100.0%)</option>
 				
@@ -135,7 +135,7 @@ func (h *authHandler) VerifyPin(c *fiber.Ctx) error <span class="cov8" title="1"
 
 func (h *authHandler) RefreshToken(c *fiber.Ctx) error <span class="cov8" title="1">{
         var req entities.RefreshTokenRequest
-        if err := c.BodyParser(&amp;req); err != nil </span><span class="cov8" title="1">{
+        if err := c.BodyParser(&amp;req); err != nil </span><span class="cov0" title="0">{
                 return c.Status(fiber.StatusBadRequest).JSON(response.ErrorResponse{
                         Code:    response.ErrCodeBadRequest,
                         Message: "Invalid request body",
