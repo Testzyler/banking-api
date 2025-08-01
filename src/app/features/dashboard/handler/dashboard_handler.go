@@ -22,20 +22,21 @@ func NewDashboardHandler(router fiber.Router, service service.DashboardService) 
 }
 
 func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error {
-	var params entities.DashboardParams
-	if err := c.BodyParser(&params); err != nil {
-		return err
-	}
-	if err := params.Validate(); err != nil {
-		return err
-	}
+	userID := c.Locals("user").(*entities.Claims).UserID
 
-	data, err := h.service.GetDashboardData(params)
+	// data, err := h.service.GetDashboardData(entities.DashboardParams{UserID: userID})
+	// if err != nil {
+	// 	return err
+	// }
+
+	// Optimized
+	data, err := h.service.GetDashboardDataWithTrx(userID)
 	if err != nil {
 		return err
 	}
 
 	return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
+		Code:    response.Success,
 		Message: "Dashboard data retrieved successfully",
 		Data:    data,
 	})

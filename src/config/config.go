@@ -118,15 +118,15 @@ func loadConfig(envFile string) *Config {
 		},
 		Auth: &AuthConfig{
 			Jwt: &JwtConfig{
-				AccessTokenSecret:  viper.GetString("Jwt.AccessTokenSecret"),
-				RefreshTokenSecret: viper.GetString("Jwt.RefreshTokenSecret"),
-				AccessTokenExpiry:  time.Duration(viper.GetInt("Jwt.AccessTokenExpiry")) * time.Minute,
-				RefreshTokenExpiry: time.Duration(viper.GetInt("Jwt.RefreshTokenExpiry")) * 24 * time.Hour,
+				AccessTokenSecret:  viper.GetString("Auth.Jwt.AccessTokenSecret"),
+				RefreshTokenSecret: viper.GetString("Auth.Jwt.RefreshTokenSecret"),
+				AccessTokenExpiry:  time.Duration(viper.GetInt("Auth.Jwt.AccessTokenExpiry")) * time.Minute,
+				RefreshTokenExpiry: time.Duration(viper.GetInt("Auth.Jwt.RefreshTokenExpiry")) * 24 * time.Hour,
 			},
 			Pin: &PinConfig{
-				BaseDuration:    time.Duration(viper.GetInt("Pin.BaseDuration")) * time.Second,
-				LockThreshold:   viper.GetInt("Pin.LockThreshold"),
-				MaxLockDuration: time.Duration(viper.GetInt("Pin.MaxLockDuration")) * time.Second,
+				BaseDuration:    viper.GetDuration("Auth.Pin.BaseDuration"),
+				LockThreshold:   viper.GetInt("Auth.Pin.LockThreshold"),
+				MaxLockDuration: viper.GetDuration("Auth.Pin.MaxLockDuration"),
 			},
 		},
 	}

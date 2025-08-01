@@ -46,6 +46,7 @@ func (h *userHandler) GetUsers(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(&entities.PaginatedResponse{
 		SuccessResponse: response.SuccessResponse{
+			Code:    response.Success,
 			Message: "Users retrieved successfully",
 			Data:    users,
 		},
@@ -66,6 +67,7 @@ func (h *userHandler) GetUser(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusOK).JSON(&response.SuccessResponse{
+		Code:    response.Success,
 		Message: "User retrieved successfully",
 		Data:    user,
 	})

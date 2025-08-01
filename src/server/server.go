@@ -84,8 +84,8 @@ func (s *Server) setupRoutes() {
 		}
 
 		return c.JSON(&response.SuccessResponse{
+			Code:    response.Success,
 			Message: "Service is healthy",
-			Code:    response.SuccessCodeOK,
 			Data:    healthData,
 		})
 	})

@@ -24,6 +24,8 @@ type TokenResponse struct {
 	Token        string    `json:"token"`
 	Expiry       time.Time `json:"expiry"`
 	RefreshToken string    `json:"refreshToken"`
+	UserID       string    `json:"userID"`
+	User
 }
 
 type Claims struct {

@@ -74,7 +74,6 @@ func TestUserHandler_GetUser_TableDriven(t *testing.T) {
 				expectedUser := &models.User{
 					UserID:   userID,
 					Name:     "John Doe",
-					DummyCol: "test_data",
 				}
 				params := entities.GetUserByIdParams{UserID: userID}
 				mockService.On("GetUserByID", params).Return(expectedUser, nil)
@@ -303,8 +302,8 @@ func TestUserHandler_GetUsers_TableDriven(t *testing.T) {
 			queryParams: "",
 			mockSetup: func(mockService *MockUserService) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "Alice", DummyCol: "data1"},
-					{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+					{UserID: "user1", Name: "Alice"},
+					{UserID: "user2", Name: "Bob"},
 				}
 				params := entities.PaginationParams{Page: 1, PerPage: 10, Search: ""}
 				meta := entities.PaginationMeta{
@@ -326,7 +325,7 @@ func TestUserHandler_GetUsers_TableDriven(t *testing.T) {
 			queryParams: "?page=2&perPage=5",
 			mockSetup: func(mockService *MockUserService) {
 				expectedUsers := []*models.User{
-					{UserID: "user6", Name: "Frank", DummyCol: "data6"},
+					{UserID: "user6", Name: "Frank"},
 				}
 				params := entities.PaginationParams{Page: 2, PerPage: 5, Search: ""}
 				meta := entities.PaginationMeta{
@@ -348,7 +347,7 @@ func TestUserHandler_GetUsers_TableDriven(t *testing.T) {
 			queryParams: "?search=alice",
 			mockSetup: func(mockService *MockUserService) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+					{UserID: "user1", Name: "Alice"},
 				}
 				params := entities.PaginationParams{Page: 1, PerPage: 10, Search: "alice"}
 				meta := entities.PaginationMeta{
@@ -448,7 +447,7 @@ func TestUserHandler_GetUsers_TableDriven(t *testing.T) {
 			queryParams: "?search=" + url.QueryEscape("ผู้ใช้"),
 			mockSetup: func(mockService *MockUserService) {
 				expectedUsers := []*models.User{
-					{UserID: "thai_user", Name: "Thai User", DummyCol: "thai_data"},
+					{UserID: "thai_user", Name: "Thai User"},
 				}
 				params := entities.PaginationParams{Page: 1, PerPage: 10, Search: "ผู้ใช้"}
 				meta := entities.PaginationMeta{

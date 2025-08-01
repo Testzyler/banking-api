@@ -10,7 +10,6 @@ type DebitCards struct {
 }
 
 type DebitCardDesign struct {
-	CardID      string `json:"cardID"`
 	Color       string `json:"color"`
 	BorderColor string `json:"borderColor"`
 }

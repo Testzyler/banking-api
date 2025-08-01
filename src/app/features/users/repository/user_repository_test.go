@@ -41,17 +41,16 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			name:   "valid user ID - success",
 			userID: "user123",
 			mockSetup: func(mock sqlmock.Sqlmock, userID string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user123", "John Doe", "test_data")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user123", "John Doe")
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE user_id = \\? ORDER BY `users`.`user_id` LIMIT \\?").
 					WithArgs(userID, 1).
 					WillReturnRows(rows)
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "user123",
-				Name:     "John Doe",
-				DummyCol: "test_data",
+				UserID: "user123",
+				Name:   "John Doe",
 			},
 		},
 		{
@@ -131,17 +130,16 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 			name:   "unicode user ID - success",
 			userID: "ผู้ใช้123",
 			mockSetup: func(mock sqlmock.Sqlmock, userID string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("ผู้ใช้123", "Thai User", "thai_data")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("ผู้ใช้123", "Thai User")
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE user_id = \\? ORDER BY `users`.`user_id` LIMIT \\?").
 					WithArgs(userID, 1).
 					WillReturnRows(rows)
 			},
 			expectError: false,
 			expectUser: &models.User{
-				UserID:   "ผู้ใช้123",
-				Name:     "Thai User",
-				DummyCol: "thai_data",
+				UserID: "ผู้ใช้123",
+				Name:   "Thai User",
 			},
 		},
 		{
@@ -197,7 +195,6 @@ func TestUserRepository_GetByID_TableDriven(t *testing.T) {
 				if tt.expectUser != nil {
 					assert.Equal(t, tt.expectUser.UserID, user.UserID)
 					assert.Equal(t, tt.expectUser.Name, user.Name)
-					assert.Equal(t, tt.expectUser.DummyCol, user.DummyCol)
 				}
 			}
 
@@ -226,9 +223,9 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1").
-					AddRow("user2", "Bob", "data2")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice").
+					AddRow("user2", "Bob")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -242,7 +239,7 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -270,10 +267,10 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				// Simulate 1000 users
 				for i := 1; i <= 1000; i++ {
-					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)), "data"+string(rune(i)))
+					rows.AddRow("user"+string(rune(i)), "User "+string(rune(i)))
 				}
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
@@ -288,7 +285,7 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -302,9 +299,9 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    -1,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1").
-					AddRow("user2", "Bob", "data2")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice").
+					AddRow("user2", "Bob")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -318,9 +315,9 @@ func TestUserRepository_GetAll_TableDriven(t *testing.T) {
 			page:    2,
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user6", "Frank", "data6").
-					AddRow("user7", "Grace", "data7")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user6", "Frank").
+					AddRow("user7", "Grace")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
 					WithArgs(perPage, (page-1)*perPage).
 					WillReturnRows(rows)
@@ -383,10 +380,10 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1").
-					AddRow("user2", "Bob", "data2").
-					AddRow("user3", "Charlie", "data3")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice").
+					AddRow("user2", "Bob").
+					AddRow("user3", "Charlie")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -398,9 +395,9 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
-				{UserID: "user2", Name: "Bob", DummyCol: "data2"},
-				{UserID: "user3", Name: "Charlie", DummyCol: "data3"},
+				{UserID: "user1", Name: "Alice"},
+				{UserID: "user2", Name: "Bob"},
+				{UserID: "user3", Name: "Charlie"},
 			},
 			expectCount: 15,
 		},
@@ -411,9 +408,9 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with offset
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user6", "Frank", "data6").
-					AddRow("user7", "Grace", "data7")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user6", "Frank").
+					AddRow("user7", "Grace")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\? OFFSET \\?").
 					WithArgs(perPage, 5).
 					WillReturnRows(rows)
@@ -425,8 +422,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "user6", Name: "Frank", DummyCol: "data6"},
-				{UserID: "user7", Name: "Grace", DummyCol: "data7"},
+				{UserID: "user6", Name: "Frank"},
+				{UserID: "user7", Name: "Grace"},
 			},
 			expectCount: 12,
 		},
@@ -437,9 +434,9 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "Admin",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with search
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("admin1", "Admin User", "admin_data").
-					AddRow("admin2", "Super Admin", "admin_data2")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("admin1", "Admin User").
+					AddRow("admin2", "Super Admin")
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
 					WithArgs("%Admin%", perPage).
 					WillReturnRows(rows)
@@ -452,8 +449,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "admin1", Name: "Admin User", DummyCol: "admin_data"},
-				{UserID: "admin2", Name: "Super Admin", DummyCol: "admin_data2"},
+				{UserID: "admin1", Name: "Admin User"},
+				{UserID: "admin2", Name: "Super Admin"},
 			},
 			expectCount: 2,
 		},
@@ -464,7 +461,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "nonexistent",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock empty data query
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
 					WithArgs("%nonexistent%", perPage).
 					WillReturnRows(rows)
@@ -486,8 +483,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query without search
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -499,7 +496,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+				{UserID: "user1", Name: "Alice"},
 			},
 			expectCount: 10,
 		},
@@ -510,7 +507,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with 0 limit
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(0).
 					WillReturnRows(rows)
@@ -531,8 +528,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with offset 0 (negative page handled)
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -544,7 +541,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+				{UserID: "user1", Name: "Alice"},
 			},
 			expectCount: 5,
 		},
@@ -571,8 +568,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock successful data query
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "Alice", "data1")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "Alice")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(perPage).
 					WillReturnRows(rows)
@@ -593,7 +590,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "user@#$%",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with special character search
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"})
+				rows := sqlmock.NewRows([]string{"user_id", "name"})
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
 					WithArgs("%user@#$%%", perPage).
 					WillReturnRows(rows)
@@ -615,8 +612,8 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "ผู้ใช้",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with unicode search
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("ผู้ใช้123", "Thai User", "thai_data")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("ผู้ใช้123", "Thai User")
 				mock.ExpectQuery("SELECT \\* FROM `users` WHERE name LIKE \\? ORDER BY name ASC LIMIT \\?").
 					WithArgs("%ผู้ใช้%", perPage).
 					WillReturnRows(rows)
@@ -629,7 +626,7 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "ผู้ใช้123", Name: "Thai User", DummyCol: "thai_data"},
+				{UserID: "ผู้ใช้123", Name: "Thai User"},
 			},
 			expectCount: 1,
 		},
@@ -640,10 +637,10 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			search:  "",
 			mockSetup: func(mock sqlmock.Sqlmock, perPage, page int, search string) {
 				// Mock data query with large limit - return just 3 users for testing
-				rows := sqlmock.NewRows([]string{"user_id", "name", "dummy_col_1"}).
-					AddRow("user1", "User 1", "data1").
-					AddRow("user2", "User 2", "data2").
-					AddRow("user3", "User 3", "data3")
+				rows := sqlmock.NewRows([]string{"user_id", "name"}).
+					AddRow("user1", "User 1").
+					AddRow("user2", "User 2").
+					AddRow("user3", "User 3")
 				mock.ExpectQuery("SELECT \\* FROM `users` ORDER BY name ASC LIMIT \\?").
 					WithArgs(1000).
 					WillReturnRows(rows)
@@ -655,9 +652,9 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 			},
 			expectError: false,
 			expectUsers: []*models.User{
-				{UserID: "user1", Name: "User 1", DummyCol: "data1"},
-				{UserID: "user2", Name: "User 2", DummyCol: "data2"},
-				{UserID: "user3", Name: "User 3", DummyCol: "data3"},
+				{UserID: "user1", Name: "User 1"},
+				{UserID: "user2", Name: "User 2"},
+				{UserID: "user3", Name: "User 3"},
 			},
 			expectCount: 500,
 		},
@@ -691,7 +688,6 @@ func TestUserRepository_GetAllWithCount_TableDriven(t *testing.T) {
 				for i := range users {
 					assert.Equal(t, tt.expectUsers[i].UserID, users[i].UserID)
 					assert.Equal(t, tt.expectUsers[i].Name, users[i].Name)
-					assert.Equal(t, tt.expectUsers[i].DummyCol, users[i].DummyCol)
 				}
 				assert.Equal(t, tt.expectCount, count)
 			}

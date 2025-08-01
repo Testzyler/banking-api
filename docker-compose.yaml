@@ -19,11 +19,11 @@ services:
       timeout: 20s
       retries: 10
 
-  banking-api-migrations:
+  banking-api-data-migrations:
     build:
       context: ./src
       dockerfile: Dockerfile
-    container_name: banking_api_migrations
+    container_name: banking_api_data_migrations
     env_file:
       - ./src/config.docker.yaml
     depends_on:
@@ -46,7 +46,7 @@ services:
     ports:
       - "${PORT}:${PORT}"
     depends_on:
-      banking-api-migrations:
+      banking-api-data-migrations:
         condition: service_completed_successfully
     networks:
       - banking_network

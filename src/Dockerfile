@@ -4,12 +4,15 @@ FROM golang:1.24.5-alpine3.21 AS builder
 WORKDIR /app
 RUN apk add --no-cache git
 
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o banking-api .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-s -w" -o banking-api .
 
 # Stage 2: Minimal Runtime
-FROM alpine:latest
+FROM alpine:3.21
 
 RUN apk --no-cache add ca-certificates
 

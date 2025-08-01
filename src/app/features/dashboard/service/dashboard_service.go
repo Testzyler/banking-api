@@ -3,7 +3,6 @@ package service
 import (
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/dashboard/repository"
-	"github.com/shopspring/decimal"
 )
 
 type dashboardService struct {
@@ -12,6 +11,7 @@ type dashboardService struct {
 
 type DashboardService interface {
 	GetDashboardData(entities.DashboardParams) (entities.DashboardResponse, error)
+	GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error)
 }
 
 func NewDashboardService(repo repository.DashboardRepository) *dashboardService {
@@ -19,7 +19,6 @@ func NewDashboardService(repo repository.DashboardRepository) *dashboardService 
 		repo: repo,
 	}
 }
-
 func (s *dashboardService) GetDashboardData(params entities.DashboardParams) (entities.DashboardResponse, error) {
 	user, err := s.repo.GetUserByID(params.UserID)
 	if err != nil {
@@ -46,21 +45,24 @@ func (s *dashboardService) GetDashboardData(params entities.DashboardParams) (en
 		return entities.DashboardResponse{}, err
 	}
 
+	getTotalBalance := s.repo.GetTotalBalance(params.UserID)
+
 	data := entities.DashboardResponse{
 		User:         user,
 		DebitCards:   cards,
 		Banners:      banners,
 		Transactions: transactions,
 		Accounts:     accounts,
-		TotalBalance: getTotalBalance(accounts),
+		TotalBalance: getTotalBalance,
 	}
 	return data, nil
 }
 
-func getTotalBalance(accounts []entities.Account) float64 {
-	totalBalance := decimal.Zero
-	for _, account := range accounts {
-		totalBalance = totalBalance.Add(decimal.NewFromFloat(account.Amount))
+func (s *dashboardService) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) {
+	dashboard, err := s.repo.GetDashboardDataWithTrx(userID)
+	if err != nil {
+		return entities.DashboardResponse{}, err
 	}
-	return totalBalance.InexactFloat64()
+
+	return dashboard, nil
 }

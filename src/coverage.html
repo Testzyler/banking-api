@@ -1,0 +1,1153 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>handler: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/Testzyler/banking-api/app/features/auth/handler/auth_handler.go (81.8%)</option>
+				
+				<option value="file1">github.com/Testzyler/banking-api/app/features/auth/repository/auth_repository.go (100.0%)</option>
+				
+				<option value="file2">github.com/Testzyler/banking-api/app/features/auth/service/auth_service.go (73.3%)</option>
+				
+				<option value="file3">github.com/Testzyler/banking-api/app/features/auth/service/jwt_service.go (0.0%)</option>
+				
+				<option value="file4">github.com/Testzyler/banking-api/app/features/dashboard/handler/dashboard_handler.go (62.5%)</option>
+				
+				<option value="file5">github.com/Testzyler/banking-api/app/features/dashboard/repository/dashboard_repository.go (29.6%)</option>
+				
+				<option value="file6">github.com/Testzyler/banking-api/app/features/dashboard/service/dashboard_service.go (91.3%)</option>
+				
+				<option value="file7">github.com/Testzyler/banking-api/app/features/users/handler/user_handler.go (100.0%)</option>
+				
+				<option value="file8">github.com/Testzyler/banking-api/app/features/users/repository/user_repository.go (100.0%)</option>
+				
+				<option value="file9">github.com/Testzyler/banking-api/app/features/users/service/user_service.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package handler
+
+import (
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/auth/service"
+        "github.com/Testzyler/banking-api/server/exception"
+        "github.com/Testzyler/banking-api/server/response"
+        "github.com/gofiber/fiber/v2"
+)
+
+type authHandler struct {
+        service service.AuthService
+}
+
+func NewAuthHandler(router fiber.Router, service service.AuthService) <span class="cov0" title="0">{
+        handler := &amp;authHandler{
+                service: service,
+        }
+
+        auth := router.Group("/auth")
+        auth.Post("/verify-pin", handler.VerifyPin)
+        auth.Post("/refresh", handler.RefreshToken)
+}</span>
+
+func (h *authHandler) VerifyPin(c *fiber.Ctx) error <span class="cov8" title="1">{
+        var params entities.PinVerifyParams
+        if err := c.BodyParser(&amp;params); err != nil </span><span class="cov8" title="1">{
+                return exception.ErrValidationFailed
+        }</span>
+
+        <span class="cov8" title="1">if err := params.Validate(); err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">tokenResponse, err := h.service.VerifyPin(params)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return c.Status(fiber.StatusOK).JSON(&amp;response.SuccessResponse{
+                Code:    response.Success,
+                Message: "PIN verified successfully",
+                Data:    tokenResponse,
+        })</span>
+}
+
+func (h *authHandler) RefreshToken(c *fiber.Ctx) error <span class="cov8" title="1">{
+        var req entities.RefreshTokenRequest
+        if err := c.BodyParser(&amp;req); err != nil </span><span class="cov8" title="1">{
+                return c.Status(fiber.StatusBadRequest).JSON(response.ErrorResponse{
+                        Code:    response.ErrCodeBadRequest,
+                        Message: "Invalid request body",
+                        Details: err.Error(),
+                })
+        }</span>
+
+        <span class="cov8" title="1">tokenResponse, err := h.service.RefreshToken(req.RefreshToken)
+        if err != nil </span><span class="cov8" title="1">{
+                if errorResponse, ok := err.(*response.ErrorResponse); ok </span><span class="cov8" title="1">{
+                        return c.Status(errorResponse.HttpStatusCode).JSON(errorResponse)
+                }</span>
+
+                <span class="cov8" title="1">return c.Status(fiber.StatusUnauthorized).JSON(response.ErrorResponse{
+                        Code:    response.ErrCodeUnauthorized,
+                        Message: "Invalid refresh token",
+                        Details: err.Error(),
+                })</span>
+        }
+
+        <span class="cov8" title="1">return c.Status(fiber.StatusOK).JSON(response.SuccessResponse{
+                Code:    response.Success,
+                Message: "Token refreshed successfully",
+                Data:    tokenResponse,
+        })</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package repository
+
+import (
+        "time"
+
+        "github.com/Testzyler/banking-api/app/models"
+        "gorm.io/gorm"
+)
+
+type authRepository struct {
+        db *gorm.DB
+}
+
+type AuthRepository interface {
+        GetUserWithPin(username string) (*models.User, error)
+        UpdateUserPinFailedAttempts(userID string, failedAttempts int) error
+        UpdateUserPinLockedUntil(userID string, lockedUntil *time.Time) error
+}
+
+func NewAuthRepository(db *gorm.DB) AuthRepository <span class="cov8" title="1">{
+        return &amp;authRepository{db: db}
+}</span>
+
+func (r *authRepository) GetUserWithPin(username string) (*models.User, error) <span class="cov8" title="1">{
+        var user models.User
+
+        err := r.db.
+                Preload("UserPin").
+                Where("name = ?", username).
+                First(&amp;user).Error
+
+        return &amp;user, err
+}</span>
+
+func (r *authRepository) UpdateUserPinFailedAttempts(userID string, failedAttempts int) error <span class="cov8" title="1">{
+        return r.db.Model(&amp;models.UserPin{}).Where("user_id = ?", userID).Update("failed_pin_attempts", failedAttempts).Error
+}</span>
+
+func (r *authRepository) UpdateUserPinLockedUntil(userID string, lockedUntil *time.Time) error <span class="cov8" title="1">{
+        return r.db.Model(&amp;models.UserPin{}).Where("user_id = ?", userID).Update("pin_locked_until", lockedUntil).Error
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package service
+
+import (
+        "errors"
+        "time"
+
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/auth/repository"
+        "github.com/Testzyler/banking-api/app/models"
+        "github.com/Testzyler/banking-api/config"
+        "github.com/Testzyler/banking-api/server/exception"
+        "golang.org/x/crypto/bcrypt"
+        "gorm.io/gorm"
+)
+
+type authService struct {
+        config     *config.Config
+        jwtService JwtService
+        repository repository.AuthRepository
+}
+
+type AuthService interface {
+        VerifyPin(params entities.PinVerifyParams) (*entities.TokenResponse, error)
+        RefreshToken(refreshToken string) (*entities.TokenResponse, error)
+}
+
+func NewAuthService(repository repository.AuthRepository, jwtService JwtService, config *config.Config) AuthService <span class="cov8" title="1">{
+        return &amp;authService{repository: repository, jwtService: jwtService, config: config}
+}</span>
+
+func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.TokenResponse, error) <span class="cov8" title="1">{
+        user, err := s.repository.GetUserWithPin(params.Username)
+        if err != nil </span><span class="cov8" title="1">{
+                if errors.Is(err, gorm.ErrRecordNotFound) </span><span class="cov8" title="1">{
+                        return nil, exception.ErrUserNotFound
+                }</span>
+                <span class="cov8" title="1">return nil, err</span>
+        }
+
+        <span class="cov8" title="1">now := time.Now()
+
+        if isPinLocked(user.UserPin, now) </span><span class="cov0" title="0">{
+                remainingTime := user.UserPin.PinLockedUntil.Sub(now).Round(time.Second)
+                return nil, exception.NewPinLockedError(remainingTime.String())
+        }</span>
+
+        <span class="cov8" title="1">if isPinExpired(user.UserPin, now) </span><span class="cov0" title="0">{
+                return nil, exception.ErrPinExpired
+        }</span>
+
+        <span class="cov8" title="1">if !isPinCorrect(user.UserPin.HashedPin, params.Pin) </span><span class="cov8" title="1">{
+                return nil, s.handleFailedAttempt(user, now)
+        }</span>
+
+        // Success: reset failed attempts and lock
+        <span class="cov8" title="1">_ = s.repository.UpdateUserPinFailedAttempts(user.UserID, 0)
+        _ = s.repository.UpdateUserPinLockedUntil(user.UserID, nil)
+
+        // Generate JWT tokens
+        tokenResponse, err := s.jwtService.GenerateTokens(user.UserID, params.Username)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, exception.NewInternalError(err)
+        }</span>
+
+        <span class="cov8" title="1">tokenResponse.UserID = user.UserID
+        tokenResponse.User = entities.User{
+                UserID: user.UserID,
+                Name:   user.Name,
+        }
+
+        return tokenResponse, nil</span>
+}
+
+func isPinLocked(pin *models.UserPin, now time.Time) bool <span class="cov8" title="1">{
+        return pin.PinLockedUntil != nil &amp;&amp; now.Before(*pin.PinLockedUntil)
+}</span>
+
+func isPinExpired(pin *models.UserPin, now time.Time) bool <span class="cov8" title="1">{
+        return pin.LastPinAttemptAt != nil &amp;&amp; now.After(*pin.LastPinAttemptAt)
+}</span>
+
+func isPinCorrect(hashedPin, inputPin string) bool <span class="cov8" title="1">{
+        return bcrypt.CompareHashAndPassword([]byte(hashedPin), []byte(inputPin)) == nil
+}</span>
+
+func (s *authService) handleFailedAttempt(user *models.User, now time.Time) error <span class="cov8" title="1">{
+        newAttempts := user.UserPin.FailedPinAttempts + 1
+        if err := s.repository.UpdateUserPinFailedAttempts(user.UserID, newAttempts); err != nil </span><span class="cov0" title="0">{
+                return exception.NewInternalError(err)
+        }</span>
+
+        // Configurable
+        // const (
+        //         baseDuration   = 10 * time.Second
+        //         lockThreshold  = 3
+        //         maxLockSeconds = 300
+        // )
+
+        <span class="cov8" title="1">baseDuration := s.config.Auth.Pin.BaseDuration
+        lockThreshold := s.config.Auth.Pin.LockThreshold
+        maxLockDuration := s.config.Auth.Pin.MaxLockDuration
+
+        if newAttempts &gt;= lockThreshold </span><span class="cov0" title="0">{
+                power := newAttempts - lockThreshold
+                lockDuration := baseDuration * time.Duration(1&lt;&lt;power) // 2^power
+
+                // Cap max lock duration
+                if lockDuration &gt; maxLockDuration </span><span class="cov0" title="0">{
+                        lockDuration = maxLockDuration
+                }</span>
+
+                <span class="cov0" title="0">lockedUntil := now.Add(lockDuration)
+                _ = s.repository.UpdateUserPinLockedUntil(user.UserID, &amp;lockedUntil)
+
+                // PIN is now locked
+                return exception.NewPinLockedError(lockDuration.String())</span>
+        }
+
+        // Return error with remaining attempts
+        <span class="cov8" title="1">remainingAttempts := lockThreshold - newAttempts
+        return exception.NewInvalidPinError(remainingAttempts)</span>
+}
+
+func (s *authService) RefreshToken(refreshToken string) (*entities.TokenResponse, error) <span class="cov8" title="1">{
+        tokenResponse, err := s.jwtService.RefreshAccessToken(refreshToken)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return tokenResponse, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package service
+
+import (
+        "errors"
+        "time"
+
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/config"
+        "github.com/Testzyler/banking-api/server/exception"
+        "github.com/golang-jwt/jwt/v5"
+        "github.com/google/uuid"
+)
+
+type jwtService struct {
+        config *config.Config
+}
+
+type JwtService interface {
+        GenerateTokens(userID, username string) (*entities.TokenResponse, error)
+        ValidateAccessToken(tokenString string) (*entities.Claims, error)
+        ValidateRefreshToken(tokenString string) (*entities.Claims, error)
+        RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error)
+}
+
+func NewJwtService(config *config.Config) JwtService <span class="cov0" title="0">{
+        return &amp;jwtService{config: config}
+}</span>
+
+func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenResponse, error) <span class="cov0" title="0">{
+        accessToken, accessExpiry, err := s.generateToken(userID, username, "access")
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">refreshToken, _, err := s.generateToken(userID, username, "refresh")
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;entities.TokenResponse{
+                Token:        accessToken,
+                Expiry:       accessExpiry,
+                RefreshToken: refreshToken,
+        }, nil</span>
+}
+
+func (s *jwtService) generateToken(userID, username, tokenType string) (string, time.Time, error) <span class="cov0" title="0">{
+        var secret string
+        var expiry time.Duration
+
+        switch tokenType </span>{
+        case "access":<span class="cov0" title="0">
+                secret = s.config.Auth.Jwt.AccessTokenSecret
+                expiry = s.config.Auth.Jwt.AccessTokenExpiry</span>
+        case "refresh":<span class="cov0" title="0">
+                secret = s.config.Auth.Jwt.RefreshTokenSecret
+                expiry = s.config.Auth.Jwt.RefreshTokenExpiry</span>
+        default:<span class="cov0" title="0">
+                return "", time.Time{}, errors.New("invalid token type")</span>
+        }
+
+        <span class="cov0" title="0">now := time.Now()
+        expiryTime := now.Add(expiry)
+
+        claims := &amp;entities.Claims{
+                UserID:   userID,
+                Username: username,
+                Type:     tokenType,
+                RegisteredClaims: jwt.RegisteredClaims{
+                        ID:        uuid.New().String(),
+                        Subject:   userID,
+                        Audience:  []string{"banking-api"},
+                        IssuedAt:  jwt.NewNumericDate(now),
+                        ExpiresAt: jwt.NewNumericDate(expiryTime),
+                        Issuer:    "banking-api",
+                },
+        }
+
+        token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+        tokenString, err := token.SignedString([]byte(secret))
+        if err != nil </span><span class="cov0" title="0">{
+                return "", time.Time{}, err
+        }</span>
+
+        <span class="cov0" title="0">return tokenString, expiryTime, nil</span>
+}
+
+func (s *jwtService) ValidateAccessToken(tokenString string) (*entities.Claims, error) <span class="cov0" title="0">{
+        return s.validateToken(tokenString, s.config.Auth.Jwt.AccessTokenSecret, "access")
+}</span>
+
+func (s *jwtService) ValidateRefreshToken(tokenString string) (*entities.Claims, error) <span class="cov0" title="0">{
+        return s.validateToken(tokenString, s.config.Auth.Jwt.RefreshTokenSecret, "refresh")
+}</span>
+
+func (s *jwtService) validateToken(tokenString, secret, expectedType string) (*entities.Claims, error) <span class="cov0" title="0">{
+        if tokenString == "" </span><span class="cov0" title="0">{
+                return nil, errors.New("token is empty")
+        }</span>
+
+        <span class="cov0" title="0">token, err := jwt.ParseWithClaims(tokenString, &amp;entities.Claims{}, func(token *jwt.Token) (interface{}, error) </span><span class="cov0" title="0">{
+                if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok </span><span class="cov0" title="0">{
+                        return nil, jwt.ErrSignatureInvalid
+                }</span>
+                <span class="cov0" title="0">return []byte(secret), nil</span>
+        })
+
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, jwt.ErrTokenExpired) </span><span class="cov0" title="0">{
+                        return nil, exception.ErrTokenExpired
+                }</span>
+                <span class="cov0" title="0">return nil, err</span>
+        }
+
+        <span class="cov0" title="0">if claims, ok := token.Claims.(*entities.Claims); ok &amp;&amp; token.Valid </span><span class="cov0" title="0">{
+                if claims.Type != expectedType </span><span class="cov0" title="0">{
+                        return nil, jwt.ErrInvalidType
+                }</span>
+                <span class="cov0" title="0">return claims, nil</span>
+        }
+
+        <span class="cov0" title="0">return nil, jwt.ErrTokenInvalidClaims</span>
+}
+
+func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error) <span class="cov0" title="0">{
+        claims, err := s.ValidateRefreshToken(refreshTokenString)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">accessToken, accessExpiry, err := s.generateToken(claims.UserID, claims.Username, "access")
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;entities.TokenResponse{
+                Token:        accessToken,
+                Expiry:       accessExpiry,
+                RefreshToken: refreshTokenString,
+                UserID:       claims.UserID,
+                User: entities.User{
+                        UserID: claims.UserID,
+                        Name:   claims.Username,
+                },
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package dashboard
+
+import (
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/dashboard/service"
+        "github.com/Testzyler/banking-api/server/middlewares"
+        "github.com/Testzyler/banking-api/server/response"
+        "github.com/gofiber/fiber/v2"
+)
+
+type dashboardHandler struct {
+        service service.DashboardService
+}
+
+func NewDashboardHandler(router fiber.Router, service service.DashboardService) <span class="cov0" title="0">{
+        handler := &amp;dashboardHandler{
+                service: service,
+        }
+
+        dashboard := router.Group("/dashboard")
+        dashboard.Get("/accounts", middlewares.AuthMiddleware(), handler.GetDashboardData)
+}</span>
+
+func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error <span class="cov8" title="1">{
+        userID := c.Locals("user").(*entities.Claims).UserID
+
+        // data, err := h.service.GetDashboardData(entities.DashboardParams{UserID: userID})
+        // if err != nil {
+        //         return err
+        // }
+
+        // Optimized
+        data, err := h.service.GetDashboardDataWithTrx(userID)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return c.Status(fiber.StatusOK).JSON(&amp;response.SuccessResponse{
+                Code:    response.Success,
+                Message: "Dashboard data retrieved successfully",
+                Data:    data,
+        })</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package repository
+
+import (
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/models"
+        "gorm.io/gorm"
+)
+
+type dashboardRepository struct {
+        db *gorm.DB
+}
+
+type DashboardRepository interface {
+        GetAccountsByUserID(userID string) ([]entities.Account, error)
+        GetTransactionsByUserID(userID string) ([]entities.Transaction, error)
+        GetBannersByUserID(userID string) ([]entities.Banner, error)
+        GetUserByID(userID string) (entities.User, error)
+        GetCardsByUserID(userID string) ([]entities.DebitCards, error)
+        GetTotalBalance(userID string) float64
+
+        GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error)
+}
+
+func NewDashboardRepository(repo *gorm.DB) DashboardRepository <span class="cov8" title="1">{
+        return &amp;dashboardRepository{
+                db: repo,
+        }
+}</span>
+
+func (r *dashboardRepository) GetTotalBalance(userID string) float64 <span class="cov8" title="1">{
+        var total float64
+        if err := r.db.Model(&amp;models.AccountBalance{}).
+                Select("SUM(amount)").
+                Joins("JOIN accounts ON account_balances.account_id = accounts.account_id").
+                Where("accounts.user_id = ?", userID).
+                Scan(&amp;total).Error; err != nil </span><span class="cov8" title="1">{
+                return 0
+        }</span>
+        <span class="cov8" title="1">return total</span>
+}
+
+func (r *dashboardRepository) GetAccountsByUserID(userID string) ([]entities.Account, error) <span class="cov0" title="0">{
+        var result []entities.Account
+        var accounts []models.Account
+        if err := r.db.
+                Preload("AccountDetails").
+                Preload("AccountBalance").
+                Preload("AccountFlags").
+                Find(&amp;accounts, "user_id = ?", userID).Error; err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">for _, account := range accounts </span><span class="cov0" title="0">{
+                result = append(result, convertAccountToEntity(account, account.AccountDetails, account.AccountBalance, account.AccountFlags))
+        }</span>
+
+        <span class="cov0" title="0">return result, nil</span>
+}
+
+func convertAccountToEntity(
+        account models.Account,
+        accountDetail models.AccountDetail,
+        accountBalance models.AccountBalance,
+        accountFlags []models.AccountFlag,
+) entities.Account <span class="cov0" title="0">{
+        var flags []entities.AccountFlags
+        for _, flag := range accountFlags </span><span class="cov0" title="0">{
+                flags = append(flags, entities.AccountFlags{
+                        FlagType:  flag.FlagType,
+                        FlagValue: flag.FlagValue,
+                        CreatedAt: flag.CreatedAt,
+                        UpdatedAt: flag.UpdatedAt,
+                })
+        }</span>
+
+        <span class="cov0" title="0">return entities.Account{
+                AccountID: account.AccountID,
+                Type:      account.Type,
+                Currency:  account.Currency,
+                Issuer:    account.Issuer,
+                Amount:    accountBalance.Amount,
+                AccountDetails: entities.AccountDetails{
+                        Color:         accountDetail.Color,
+                        IsMainAccount: accountDetail.IsMainAccount,
+                        Progress:      accountDetail.Progress,
+                },
+                AccountFlags: flags,
+        }</span>
+}
+
+func (r *dashboardRepository) GetUserByID(userID string) (entities.User, error) <span class="cov8" title="1">{
+        var user models.User
+
+        if err := r.db.Preload("UserGreeting").
+                First(&amp;user, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
+                return entities.User{}, err
+        }</span>
+
+        <span class="cov8" title="1">result := entities.User{
+                UserID:   user.UserID,
+                Name:     user.Name,
+                Greeting: user.UserGreeting.Greeting,
+        }
+
+        return result, nil</span>
+}
+
+func (r *dashboardRepository) GetCardsByUserID(userID string) ([]entities.DebitCards, error) <span class="cov0" title="0">{
+        var cards []models.DebitCard
+        if err := r.db.Preload("DebitCardDetail").
+                Preload("DebitCardDesign").
+                Preload("DebitCardStatus").
+                Where("user_id = ?", userID).
+                Find(&amp;cards).Error; err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">var result []entities.DebitCards
+        for _, c := range cards </span><span class="cov0" title="0">{
+                result = append(result, entities.DebitCards{
+                        CardID:   c.CardID,
+                        CardName: c.Name,
+                        DebitCardDesign: entities.DebitCardDesign{
+                                Color:       c.DebitCardDesign.Color,
+                                BorderColor: c.DebitCardDesign.BorderColor,
+                        },
+                        Status:     c.DebitCardStatus.Status,
+                        CardNumber: c.DebitCardDetail.Number,
+                        Issuer:     c.DebitCardDetail.Issuer,
+                })
+        }</span>
+        <span class="cov0" title="0">return result, nil</span>
+}
+
+func (r *dashboardRepository) GetBannersByUserID(userID string) ([]entities.Banner, error) <span class="cov8" title="1">{
+        var banners []models.Banner
+        if err := r.db.Find(&amp;banners, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">var result []entities.Banner
+        for _, banner := range banners </span><span class="cov8" title="1">{
+                result = append(result, entities.Banner{
+                        BannerID:    banner.BannerID,
+                        UserID:      banner.UserID,
+                        Title:       banner.Title,
+                        Description: banner.Description,
+                        ImageURL:    banner.Image,
+                })
+        }</span>
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (r *dashboardRepository) GetTransactionsByUserID(userID string) ([]entities.Transaction, error) <span class="cov8" title="1">{
+        var transactions []models.Transaction
+        if err := r.db.Find(&amp;transactions, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">var result []entities.Transaction
+        for _, transaction := range transactions </span><span class="cov8" title="1">{
+                result = append(result, entities.Transaction{
+                        TransactionID: transaction.TransactionID,
+                        UserID:        transaction.UserID,
+                        Name:          transaction.Name,
+                        Image:         transaction.Image,
+                        IsBank:        transaction.IsBank,
+                })
+        }</span>
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (r *dashboardRepository) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) <span class="cov0" title="0">{
+        var response entities.DashboardResponse
+
+        err := r.db.Transaction(func(tx *gorm.DB) error </span><span class="cov0" title="0">{
+                // User + Greeting
+                var user models.User
+                if err := tx.Preload("UserGreeting").First(&amp;user, "user_id = ?", userID).Error; err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">response.UserID = user.UserID
+                response.Name = user.Name
+                if user.UserGreeting != nil </span><span class="cov0" title="0">{
+                        response.Greeting = user.UserGreeting.Greeting
+                }</span>
+
+                // Debit Cards
+                <span class="cov0" title="0">var cards []models.DebitCard
+                if err := tx.Preload("DebitCardDetail").
+                        Preload("DebitCardDesign").
+                        Preload("DebitCardStatus").
+                        Where("user_id = ?", userID).
+                        Find(&amp;cards).Error; err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">for _, c := range cards </span><span class="cov0" title="0">{
+                        response.DebitCards = append(response.DebitCards, entities.DebitCards{
+                                CardID:   c.CardID,
+                                CardName: c.Name,
+                                DebitCardDesign: entities.DebitCardDesign{
+                                        Color:       c.DebitCardDesign.Color,
+                                        BorderColor: c.DebitCardDesign.BorderColor,
+                                },
+                                Status:     c.DebitCardStatus.Status,
+                                CardNumber: c.DebitCardDetail.Number,
+                                Issuer:     c.DebitCardDetail.Issuer,
+                        })
+                }</span>
+
+                // Banners
+                <span class="cov0" title="0">var banners []models.Banner
+                if err := tx.Find(&amp;banners, "user_id = ?", userID).Error; err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">for _, b := range banners </span><span class="cov0" title="0">{
+                        response.Banners = append(response.Banners, entities.Banner{
+                                BannerID:    b.BannerID,
+                                UserID:      b.UserID,
+                                Title:       b.Title,
+                                Description: b.Description,
+                                ImageURL:    b.Image,
+                        })
+                }</span>
+
+                // Transactions
+                <span class="cov0" title="0">var transactions []models.Transaction
+                if err := tx.Find(&amp;transactions, "user_id = ?", userID).Error; err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">for _, t := range transactions </span><span class="cov0" title="0">{
+                        response.Transactions = append(response.Transactions, entities.Transaction{
+                                TransactionID: t.TransactionID,
+                                UserID:        t.UserID,
+                                Name:          t.Name,
+                                Image:         t.Image,
+                                IsBank:        t.IsBank,
+                        })
+                }</span>
+
+                // Accounts + preload related
+                <span class="cov0" title="0">var accounts []models.Account
+                if err := tx.Preload("AccountDetails").
+                        Preload("AccountBalance").
+                        Preload("AccountFlags").
+                        Where("user_id = ?", userID).
+                        Find(&amp;accounts).Error; err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                <span class="cov0" title="0">total := 0.0
+                for _, acc := range accounts </span><span class="cov0" title="0">{
+                        var flags []entities.AccountFlags
+                        for _, f := range acc.AccountFlags </span><span class="cov0" title="0">{
+                                flags = append(flags, entities.AccountFlags{
+                                        FlagType:  f.FlagType,
+                                        FlagValue: f.FlagValue,
+                                        CreatedAt: f.CreatedAt,
+                                        UpdatedAt: f.UpdatedAt,
+                                })
+                        }</span>
+                        <span class="cov0" title="0">response.Accounts = append(response.Accounts, entities.Account{
+                                AccountID: acc.AccountID,
+                                Type:      acc.Type,
+                                Currency:  acc.Currency,
+                                Issuer:    acc.Issuer,
+                                Amount:    acc.AccountBalance.Amount,
+                                AccountDetails: entities.AccountDetails{
+                                        Color:         acc.AccountDetails.Color,
+                                        IsMainAccount: acc.AccountDetails.IsMainAccount,
+                                        Progress:      acc.AccountDetails.Progress,
+                                },
+                                AccountFlags: flags,
+                        })
+                        total += acc.AccountBalance.Amount</span>
+                }
+                <span class="cov0" title="0">response.TotalBalance = total
+
+                return nil</span>
+        })
+
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return entities.DashboardResponse{}, err
+        }</span>
+        <span class="cov0" title="0">return response, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package service
+
+import (
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/dashboard/repository"
+)
+
+type dashboardService struct {
+        repo repository.DashboardRepository
+}
+
+type DashboardService interface {
+        GetDashboardData(entities.DashboardParams) (entities.DashboardResponse, error)
+        GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error)
+}
+
+func NewDashboardService(repo repository.DashboardRepository) *dashboardService <span class="cov8" title="1">{
+        return &amp;dashboardService{
+                repo: repo,
+        }
+}</span>
+func (s *dashboardService) GetDashboardData(params entities.DashboardParams) (entities.DashboardResponse, error) <span class="cov8" title="1">{
+        user, err := s.repo.GetUserByID(params.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">cards, err := s.repo.GetCardsByUserID(params.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">banners, err := s.repo.GetBannersByUserID(params.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">transactions, err := s.repo.GetTransactionsByUserID(params.UserID)
+        if err != nil </span><span class="cov0" title="0">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">accounts, err := s.repo.GetAccountsByUserID(params.UserID)
+        if err != nil </span><span class="cov0" title="0">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">getTotalBalance := s.repo.GetTotalBalance(params.UserID)
+
+        data := entities.DashboardResponse{
+                User:         user,
+                DebitCards:   cards,
+                Banners:      banners,
+                Transactions: transactions,
+                Accounts:     accounts,
+                TotalBalance: getTotalBalance,
+        }
+        return data, nil</span>
+}
+
+func (s *dashboardService) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) <span class="cov8" title="1">{
+        dashboard, err := s.repo.GetDashboardDataWithTrx(userID)
+        if err != nil </span><span class="cov8" title="1">{
+                return entities.DashboardResponse{}, err
+        }</span>
+
+        <span class="cov8" title="1">return dashboard, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package handler
+
+import (
+        "net/http"
+        "strconv"
+
+        "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/users/service"
+        "github.com/Testzyler/banking-api/server/response"
+        "github.com/gofiber/fiber/v2"
+)
+
+type userHandler struct {
+        userService service.UserService
+}
+
+func NewUserHandler(router fiber.Router, userService service.UserService) <span class="cov8" title="1">{
+        handler := &amp;userHandler{
+                userService: userService,
+        }
+
+        userGroup := router.Group("/users")
+
+        userGroup.Get("/", handler.GetUsers)
+        userGroup.Get("/:id", handler.GetUser)
+}</span>
+
+func (h *userHandler) GetUsers(c *fiber.Ctx) error <span class="cov8" title="1">{
+        // Get request logger with request ID
+        // requestLogger := middlewares.GetRequestLogger(c)
+        // requestLogger.Infof("Getting users list with pagination")
+
+        var params entities.PaginationParams
+        params.Page, _ = strconv.Atoi(c.Query("page", "1"))
+        params.PerPage, _ = strconv.Atoi(c.Query("perPage", "10"))
+        params.Search = c.Query("search", "")
+
+        if err := params.Validate(); err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">users, meta, err := h.userService.GetAllUsersWithMeta(params)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return c.Status(http.StatusOK).JSON(&amp;entities.PaginatedResponse{
+                SuccessResponse: response.SuccessResponse{
+                        Code:    response.Success,
+                        Message: "Users retrieved successfully",
+                        Data:    users,
+                },
+                Meta: meta,
+        })</span>
+}
+
+func (h *userHandler) GetUser(c *fiber.Ctx) error <span class="cov8" title="1">{
+        var params entities.GetUserByIdParams
+        params.UserID = c.Params("id")
+        if err := params.Validate(); err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">user, err := h.userService.GetUserByID(params)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return c.Status(http.StatusOK).JSON(&amp;response.SuccessResponse{
+                Code:    response.Success,
+                Message: "User retrieved successfully",
+                Data:    user,
+        })</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package repository
+
+import (
+        models "github.com/Testzyler/banking-api/app/models"
+        "gorm.io/gorm"
+)
+
+type userRepository struct {
+        db *gorm.DB
+}
+type UserRepository interface {
+        GetByID(userID string) (*models.User, error)
+        GetAll(perPage, page int, search string) ([]*models.User, error)
+        GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error)
+}
+
+func NewUserRepository(db *gorm.DB) UserRepository <span class="cov8" title="1">{
+        return &amp;userRepository{db: db}
+}</span>
+
+func (r *userRepository) GetByID(userID string) (*models.User, error) <span class="cov8" title="1">{
+        var user models.User
+        err := r.db.Where("user_id = ?", userID).First(&amp;user).Error
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;user, nil</span>
+}
+
+func (r *userRepository) GetAll(perPage, page int, search string) ([]*models.User, error) <span class="cov8" title="1">{
+        var users []*models.User
+        err := r.db.Order("name ASC").Limit(perPage).Offset((page - 1) * perPage).Find(&amp;users).Error
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return users, nil</span>
+}
+
+func (r *userRepository) GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error) <span class="cov8" title="1">{
+        var users []*models.User
+        var total int64
+
+        // Build the query for data retrieval
+        dataQuery := r.db.Model(&amp;models.User{})
+
+        // Apply search filter if provided
+        if search != "" </span><span class="cov8" title="1">{
+                dataQuery = dataQuery.Where("name LIKE ?", "%"+search+"%")
+        }</span>
+
+        // Calculate offset - ensure it's never negative and always specified
+        <span class="cov8" title="1">offset := (page - 1) * perPage
+        if offset &lt; 0 </span><span class="cov8" title="1">{
+                offset = 0
+        }</span>
+
+        // Get paginated results first (to match test expectations) - Always specify both Limit and Offset
+        <span class="cov8" title="1">err := dataQuery.Order("name ASC").Limit(perPage).Offset(offset).Find(&amp;users).Error
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, 0, err
+        }</span>
+
+        // Build a separate query for count
+        <span class="cov8" title="1">countQuery := r.db.Model(&amp;models.User{})
+
+        // Apply the same search filter for count
+        if search != "" </span><span class="cov8" title="1">{
+                countQuery = countQuery.Where("name LIKE ?", "%"+search+"%")
+        }</span>
+
+        // Get total count
+        <span class="cov8" title="1">if err := countQuery.Count(&amp;total).Error; err != nil </span><span class="cov8" title="1">{
+                return nil, 0, err
+        }</span>
+
+        <span class="cov8" title="1">return users, total, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package service
+
+import (
+        "math"
+
+        entities "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/users/repository"
+        models "github.com/Testzyler/banking-api/app/models"
+        "github.com/Testzyler/banking-api/server/exception"
+        "gorm.io/gorm"
+)
+
+type userService struct {
+        userRepo repository.UserRepository
+}
+
+type UserService interface {
+        GetUserByID(params entities.GetUserByIdParams) (*models.User, error)
+        GetAllUsers(params entities.PaginationParams) ([]*models.User, error)
+        GetAllUsersWithMeta(params entities.PaginationParams) ([]*models.User, entities.PaginationMeta, error)
+}
+
+func NewUserService(userRepo repository.UserRepository) UserService <span class="cov8" title="1">{
+        return &amp;userService{
+                userRepo: userRepo,
+        }
+}</span>
+
+func (s *userService) GetUserByID(params entities.GetUserByIdParams) (*models.User, error) <span class="cov8" title="1">{
+        user, err := s.userRepo.GetByID(params.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                // Convert to business exception
+                if err == gorm.ErrRecordNotFound </span><span class="cov8" title="1">{
+                        return nil, exception.NewUserNotFoundError(params.UserID)
+                }</span>
+                <span class="cov8" title="1">return nil, exception.NewInternalError(err)</span>
+        }
+
+        <span class="cov8" title="1">return user, nil</span>
+}
+
+func (s *userService) GetAllUsers(paginationParams entities.PaginationParams) ([]*models.User, error) <span class="cov8" title="1">{
+        users, err := s.userRepo.GetAll(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, exception.NewInternalError(err)
+        }</span>
+
+        <span class="cov8" title="1">return users, nil</span>
+}
+
+func (s *userService) GetAllUsersWithMeta(paginationParams entities.PaginationParams) ([]*models.User, entities.PaginationMeta, error) <span class="cov8" title="1">{
+        users, total, err := s.userRepo.GetAllWithCount(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, entities.PaginationMeta{}, exception.NewInternalError(err)
+        }</span>
+
+        // Calculate pagination metadata
+        <span class="cov8" title="1">totalPages := int(math.Ceil(float64(total) / float64(paginationParams.PerPage)))
+        hasNext := paginationParams.Page &lt; totalPages
+        hasPrevious := paginationParams.Page &gt; 1
+
+        meta := entities.PaginationMeta{
+                Page:        paginationParams.Page,
+                PerPage:     paginationParams.PerPage,
+                Total:       int(total),
+                TotalPages:  totalPages,
+                HasNext:     hasNext,
+                HasPrevious: hasPrevious,
+        }
+
+        return users, meta, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

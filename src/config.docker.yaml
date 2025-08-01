@@ -20,3 +20,15 @@ Logger:
   Level: info           # debug, info, warn, error
   LogColor: true        # true or false
   LogJson: false        # true or false
+
+Auth:
+  Jwt:
+    AccessTokenSecret: banking-api-access-secret-key-change-in-production
+    RefreshTokenSecret: banking-api-refresh-secret-key-change-in-production
+    AccessTokenExpiry: 5 # in minutes
+    RefreshTokenExpiry: 7 # in days
+
+  Pin:
+    BaseDuration: 10 
+    MaxLockDuration: 300
+    LockThreshold: 3

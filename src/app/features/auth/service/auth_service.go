@@ -62,6 +62,12 @@ func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.Toke
 		return nil, exception.NewInternalError(err)
 	}
 
+	tokenResponse.UserID = user.UserID
+	tokenResponse.User = entities.User{
+		UserID: user.UserID,
+		Name:   user.Name,
+	}
+
 	return tokenResponse, nil
 }
 
@@ -99,8 +105,8 @@ func (s *authService) handleFailedAttempt(user *models.User, now time.Time) erro
 		lockDuration := baseDuration * time.Duration(1<<power) // 2^power
 
 		// Cap max lock duration
-		if lockDuration > maxLockDuration*time.Second {
-			lockDuration = maxLockDuration * time.Second
+		if lockDuration > maxLockDuration {
+			lockDuration = maxLockDuration
 		}
 
 		lockedUntil := now.Add(lockDuration)
