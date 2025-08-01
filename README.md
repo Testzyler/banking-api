@@ -345,6 +345,82 @@ The database consists of the following main tables:
 - **`transactions`** - Transaction records
 - **`banners`** - UI banner content
 
+
+## Available Commands
+
+```bash
+# Start API server
+go run . serve_api
+
+# Run database migrations
+go run . migrate
+
+# Show help
+go run . --help
+```
+
+## Environment Configuration
+
+The application supports different environments:
+
+- **Development**: `config.yaml`
+- **Docker**: `config.docker.yaml`
+- **Production**: Environment variables
+
+### Key Configuration Options
+
+```yaml
+Server:
+  Port: 8080
+  Environment: development
+  
+Database:
+  Host: localhost
+  Port: 3306
+  Username: banking_user
+  Password: userpassword
+  Name: banking
+  
+Logger:
+  Level: info
+  LogColor: true
+  LogJson: false
+```
+
+## Security Features
+
+**PIN Authentication**
+- Secure PIN hashing with bcrypt
+- Brute-force protection
+- Exponential backoff retry mechanism
+
+**JWT Token Management**
+- Access and refresh token system
+- Token expiration handling
+
+**Input Validation & Security**
+- Comprehensive request validation with go-playground/validator
+- SQL injection prevention through GORM parameterized queries
+- JSON-only API responses (inherent XSS protection)
+- CORS middleware configuration
+- URL parameter escaping
+
+## Deployment
+
+### Docker Deployment
+
+```bash
+# Production deployment
+docker-compose -f docker-compose.yaml up -d
+
+# Check service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f banking-api
+```
+
+
 ## Testing
 
 ### Performance Testing
@@ -438,80 +514,6 @@ go test -cover ./...
 
 # Run specific package tests
 go test ./app/features/users/...
-```
-
-## Available Commands
-
-```bash
-# Start API server
-go run . serve_api
-
-# Run database migrations
-go run . migrate
-
-# Show help
-go run . --help
-```
-
-## Environment Configuration
-
-The application supports different environments:
-
-- **Development**: `config.yaml`
-- **Docker**: `config.docker.yaml`
-- **Production**: Environment variables
-
-### Key Configuration Options
-
-```yaml
-Server:
-  Port: 8080
-  Environment: development
-  
-Database:
-  Host: localhost
-  Port: 3306
-  Username: banking_user
-  Password: userpassword
-  Name: banking
-  
-Logger:
-  Level: info
-  LogColor: true
-  LogJson: false
-```
-
-## Security Features
-
-**PIN Authentication**
-- Secure PIN hashing with bcrypt
-- Brute-force protection
-- Exponential backoff retry mechanism
-
-**JWT Token Management**
-- Access and refresh token system
-- Token expiration handling
-
-**Input Validation & Security**
-- Comprehensive request validation with go-playground/validator
-- SQL injection prevention through GORM parameterized queries
-- JSON-only API responses (inherent XSS protection)
-- CORS middleware configuration
-- URL parameter escaping
-
-## Deployment
-
-### Docker Deployment
-
-```bash
-# Production deployment
-docker-compose -f docker-compose.yaml up -d
-
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f banking-api
 ```
 
 ### Health Checks
