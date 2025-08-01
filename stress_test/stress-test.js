@@ -13,6 +13,7 @@ const dashboardResponseTime = new Trend('dashboard_response_time');
 const errorRate = new Rate('error_rate');
 const successfulLogins = new Counter('successful_logins');
 const successfulDashboardCalls = new Counter('successful_dashboard_calls');
+const tps = new Counter('tps');
 
 const BASE_URL = 'http://localhost:8080';
 
@@ -69,6 +70,9 @@ export const options = {
       'error_rate{scenario:light_load}': ['rate<0.01'],
       'error_rate{scenario:normal_load}': ['rate<0.03'],
       'error_rate{scenario:heavy_load}': ['rate<0.05'],
+
+      // TPS
+      'tps': ['rate>100'],
     },
   };
   
@@ -162,6 +166,7 @@ export default function () {
     const authData = authenticate();
     if (authData) {
         testDashboard(authData);
+        tps.add(1);
     }
     sleep(Math.random() * 2 + 1);
 }
