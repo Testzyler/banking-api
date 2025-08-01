@@ -29,6 +29,6 @@ Auth:
     RefreshTokenExpiry: 7 # in days
 
   Pin:
-    BaseDuration: 10 
-    MaxLockDuration: 300
+    BaseDuration: 10s
+    MaxLockDuration: 300s
     LockThreshold: 3

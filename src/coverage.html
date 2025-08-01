@@ -59,9 +59,9 @@
 				
 				<option value="file1">github.com/Testzyler/banking-api/app/features/auth/repository/auth_repository.go (100.0%)</option>
 				
-				<option value="file2">github.com/Testzyler/banking-api/app/features/auth/service/auth_service.go (73.3%)</option>
+				<option value="file2">github.com/Testzyler/banking-api/app/features/auth/service/auth_service.go (95.6%)</option>
 				
-				<option value="file3">github.com/Testzyler/banking-api/app/features/auth/service/jwt_service.go (0.0%)</option>
+				<option value="file3">github.com/Testzyler/banking-api/app/features/auth/service/jwt_service.go (85.4%)</option>
 				
 				<option value="file4">github.com/Testzyler/banking-api/app/features/dashboard/handler/dashboard_handler.go (62.5%)</option>
 				
@@ -248,7 +248,7 @@ func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.Toke
 
         <span class="cov8" title="1">now := time.Now()
 
-        if isPinLocked(user.UserPin, now) </span><span class="cov0" title="0">{
+        if isPinLocked(user.UserPin, now) </span><span class="cov8" title="1">{
                 remainingTime := user.UserPin.PinLockedUntil.Sub(now).Round(time.Second)
                 return nil, exception.NewPinLockedError(remainingTime.String())
         }</span>
@@ -294,7 +294,7 @@ func isPinCorrect(hashedPin, inputPin string) bool <span class="cov8" title="1">
 
 func (s *authService) handleFailedAttempt(user *models.User, now time.Time) error <span class="cov8" title="1">{
         newAttempts := user.UserPin.FailedPinAttempts + 1
-        if err := s.repository.UpdateUserPinFailedAttempts(user.UserID, newAttempts); err != nil </span><span class="cov0" title="0">{
+        if err := s.repository.UpdateUserPinFailedAttempts(user.UserID, newAttempts); err != nil </span><span class="cov8" title="1">{
                 return exception.NewInternalError(err)
         }</span>
 
@@ -309,16 +309,16 @@ func (s *authService) handleFailedAttempt(user *models.User, now time.Time) erro
         lockThreshold := s.config.Auth.Pin.LockThreshold
         maxLockDuration := s.config.Auth.Pin.MaxLockDuration
 
-        if newAttempts &gt;= lockThreshold </span><span class="cov0" title="0">{
+        if newAttempts &gt;= lockThreshold </span><span class="cov8" title="1">{
                 power := newAttempts - lockThreshold
                 lockDuration := baseDuration * time.Duration(1&lt;&lt;power) // 2^power
 
                 // Cap max lock duration
-                if lockDuration &gt; maxLockDuration </span><span class="cov0" title="0">{
+                if lockDuration &gt; maxLockDuration </span><span class="cov8" title="1">{
                         lockDuration = maxLockDuration
                 }</span>
 
-                <span class="cov0" title="0">lockedUntil := now.Add(lockDuration)
+                <span class="cov8" title="1">lockedUntil := now.Add(lockDuration)
                 _ = s.repository.UpdateUserPinLockedUntil(user.UserID, &amp;lockedUntil)
 
                 // PIN is now locked
@@ -363,44 +363,44 @@ type JwtService interface {
         RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error)
 }
 
-func NewJwtService(config *config.Config) JwtService <span class="cov0" title="0">{
+func NewJwtService(config *config.Config) JwtService <span class="cov8" title="1">{
         return &amp;jwtService{config: config}
 }</span>
 
-func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenResponse, error) <span class="cov0" title="0">{
+func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenResponse, error) <span class="cov8" title="1">{
         accessToken, accessExpiry, err := s.generateToken(userID, username, "access")
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
 
-        <span class="cov0" title="0">refreshToken, _, err := s.generateToken(userID, username, "refresh")
+        <span class="cov8" title="1">refreshToken, _, err := s.generateToken(userID, username, "refresh")
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
 
-        <span class="cov0" title="0">return &amp;entities.TokenResponse{
+        <span class="cov8" title="1">return &amp;entities.TokenResponse{
                 Token:        accessToken,
                 Expiry:       accessExpiry,
                 RefreshToken: refreshToken,
         }, nil</span>
 }
 
-func (s *jwtService) generateToken(userID, username, tokenType string) (string, time.Time, error) <span class="cov0" title="0">{
+func (s *jwtService) generateToken(userID, username, tokenType string) (string, time.Time, error) <span class="cov8" title="1">{
         var secret string
         var expiry time.Duration
 
         switch tokenType </span>{
-        case "access":<span class="cov0" title="0">
+        case "access":<span class="cov8" title="1">
                 secret = s.config.Auth.Jwt.AccessTokenSecret
                 expiry = s.config.Auth.Jwt.AccessTokenExpiry</span>
-        case "refresh":<span class="cov0" title="0">
+        case "refresh":<span class="cov8" title="1">
                 secret = s.config.Auth.Jwt.RefreshTokenSecret
                 expiry = s.config.Auth.Jwt.RefreshTokenExpiry</span>
-        default:<span class="cov0" title="0">
+        default:<span class="cov8" title="1">
                 return "", time.Time{}, errors.New("invalid token type")</span>
         }
 
-        <span class="cov0" title="0">now := time.Now()
+        <span class="cov8" title="1">now := time.Now()
         expiryTime := now.Add(expiry)
 
         claims := &amp;entities.Claims{
@@ -423,58 +423,58 @@ func (s *jwtService) generateToken(userID, username, tokenType string) (string, 
                 return "", time.Time{}, err
         }</span>
 
-        <span class="cov0" title="0">return tokenString, expiryTime, nil</span>
+        <span class="cov8" title="1">return tokenString, expiryTime, nil</span>
 }
 
-func (s *jwtService) ValidateAccessToken(tokenString string) (*entities.Claims, error) <span class="cov0" title="0">{
+func (s *jwtService) ValidateAccessToken(tokenString string) (*entities.Claims, error) <span class="cov8" title="1">{
         return s.validateToken(tokenString, s.config.Auth.Jwt.AccessTokenSecret, "access")
 }</span>
 
-func (s *jwtService) ValidateRefreshToken(tokenString string) (*entities.Claims, error) <span class="cov0" title="0">{
+func (s *jwtService) ValidateRefreshToken(tokenString string) (*entities.Claims, error) <span class="cov8" title="1">{
         return s.validateToken(tokenString, s.config.Auth.Jwt.RefreshTokenSecret, "refresh")
 }</span>
 
-func (s *jwtService) validateToken(tokenString, secret, expectedType string) (*entities.Claims, error) <span class="cov0" title="0">{
-        if tokenString == "" </span><span class="cov0" title="0">{
+func (s *jwtService) validateToken(tokenString, secret, expectedType string) (*entities.Claims, error) <span class="cov8" title="1">{
+        if tokenString == "" </span><span class="cov8" title="1">{
                 return nil, errors.New("token is empty")
         }</span>
 
-        <span class="cov0" title="0">token, err := jwt.ParseWithClaims(tokenString, &amp;entities.Claims{}, func(token *jwt.Token) (interface{}, error) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">token, err := jwt.ParseWithClaims(tokenString, &amp;entities.Claims{}, func(token *jwt.Token) (interface{}, error) </span><span class="cov8" title="1">{
                 if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok </span><span class="cov0" title="0">{
                         return nil, jwt.ErrSignatureInvalid
                 }</span>
-                <span class="cov0" title="0">return []byte(secret), nil</span>
+                <span class="cov8" title="1">return []byte(secret), nil</span>
         })
 
-        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
-                if errors.Is(err, jwt.ErrTokenExpired) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                if errors.Is(err, jwt.ErrTokenExpired) </span><span class="cov8" title="1">{
                         return nil, exception.ErrTokenExpired
                 }</span>
-                <span class="cov0" title="0">return nil, err</span>
+                <span class="cov8" title="1">return nil, err</span>
         }
 
-        <span class="cov0" title="0">if claims, ok := token.Claims.(*entities.Claims); ok &amp;&amp; token.Valid </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if claims, ok := token.Claims.(*entities.Claims); ok &amp;&amp; token.Valid </span><span class="cov8" title="1">{
                 if claims.Type != expectedType </span><span class="cov0" title="0">{
                         return nil, jwt.ErrInvalidType
                 }</span>
-                <span class="cov0" title="0">return claims, nil</span>
+                <span class="cov8" title="1">return claims, nil</span>
         }
 
         <span class="cov0" title="0">return nil, jwt.ErrTokenInvalidClaims</span>
 }
 
-func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error) <span class="cov0" title="0">{
+func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error) <span class="cov8" title="1">{
         claims, err := s.ValidateRefreshToken(refreshTokenString)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">accessToken, accessExpiry, err := s.generateToken(claims.UserID, claims.Username, "access")
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
 
-        <span class="cov0" title="0">accessToken, accessExpiry, err := s.generateToken(claims.UserID, claims.Username, "access")
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">return &amp;entities.TokenResponse{
+        <span class="cov8" title="1">return &amp;entities.TokenResponse{
                 Token:        accessToken,
                 Expiry:       accessExpiry,
                 RefreshToken: refreshTokenString,

@@ -5,20 +5,20 @@ import (
 	"gorm.io/gorm"
 )
 
-var createIndexAndFK = &Migration{
+var createIndex = &Migration{
 	Number: 3,
 	Name:   "create index table",
 
 	Forwards: func(db *gorm.DB) error {
-		return Migrate_CreateIndexAndFKForUserTable(db)
+		return Migrate_CreateIndex(db)
 	},
 }
 
 func init() {
-	Migrations = append(Migrations, createIndexAndFK)
+	Migrations = append(Migrations, createIndex)
 }
 
-func Migrate_CreateIndexAndFKForUserTable(db *gorm.DB) error {
+func Migrate_CreateIndex(db *gorm.DB) error {
 
 	statements := []string{
 		// accounts
@@ -63,6 +63,6 @@ func Migrate_CreateIndexAndFKForUserTable(db *gorm.DB) error {
 		}
 	}
 
-	logger.Infof("Index and FK created successfully")
+	logger.Infof("Index created successfully")
 	return nil
 }
