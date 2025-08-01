@@ -38,6 +38,13 @@ func GetRequestID(c *fiber.Ctx) string {
 	return ""
 }
 
+func GetStatus(c *fiber.Ctx) int {
+	if status, ok := c.Locals("status").(int); ok {
+		return status
+	}
+	return 0
+}
+
 func LoggerMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
@@ -48,16 +55,17 @@ func LoggerMiddleware() fiber.Handler {
 
 		err := c.Next()
 		duration := time.Since(start)
-		status := c.Response().StatusCode()
+		status := c.Context().Response.StatusCode()
+		statusCode := GetStatus(c)
 
-		if status >= 500 {
+		if status >= 500 || statusCode >= 500 {
 			requestLogger.Errorw("HTTP Response",
 				"method", c.Method(),
 				"path", c.Path(),
 				"status", status,
 				"duration", duration,
 			)
-		} else if status >= 400 {
+		} else if status >= 400 || statusCode >= 400 {
 			requestLogger.Warnw("HTTP Response",
 				"method", c.Method(),
 				"path", c.Path(),

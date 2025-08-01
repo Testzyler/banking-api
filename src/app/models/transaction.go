@@ -7,6 +7,8 @@ type Transaction struct {
 	Image         string `gorm:"column:image"`
 	IsBank        bool   `gorm:"column:isBank"`
 	DummyCol      string `gorm:"column:dummy_col_6"`
+
+	User *User `gorm:"foreignKey:UserID;references:UserID" json:"user,omitempty"`
 }
 
 func (Transaction) TableName() string {

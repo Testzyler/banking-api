@@ -104,7 +104,7 @@ func initHttpServer(ctx context.Context, config *config.Config) {
 		logger.Infof("HTTP server started on port %s", config.Server.Port)
 		err := httpServer.Start()
 		if err != nil {
-			logger.Errorf("Error starting HTTP server %d : %v", config.Server.Port, err)
+			logger.Fatalf("Error starting HTTP server %d : %v", config.Server.Port, err)
 			return
 		}
 	}()

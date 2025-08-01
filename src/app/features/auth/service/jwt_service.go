@@ -6,6 +6,7 @@ import (
 
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/config"
+	"github.com/Testzyler/banking-api/server/exception"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -105,6 +106,9 @@ func (s *jwtService) validateToken(tokenString, secret, expectedType string) (*e
 	})
 
 	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, exception.ErrTokenExpired
+		}
 		return nil, err
 	}
 
@@ -133,5 +137,10 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
 		Token:        accessToken,
 		Expiry:       accessExpiry,
 		RefreshToken: refreshTokenString,
+		UserID:       claims.UserID,
+		User: entities.User{
+			UserID: claims.UserID,
+			Name:   claims.Username,
+		},
 	}, nil
 }

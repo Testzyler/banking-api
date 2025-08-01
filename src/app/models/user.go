@@ -9,6 +9,13 @@ type User struct {
 	DummyCol string `gorm:"column:dummy_col_1"`
 
 	// Relationships - Proper GORM associations
+	Accounts      []Account       `gorm:"foreignKey:UserID;references:UserID" json:"accounts,omitempty"`
+	AccountDetail []AccountDetail `gorm:"foreignKey:UserID;references:UserID" json:"accountDetail,omitempty"`
+	AccountFlag   []AccountFlag   `gorm:"foreignKey:UserID;references:UserID" json:"accountFlag,omitempty"`
+	DebitCards    []DebitCard     `gorm:"foreignKey:UserID;references:UserID" json:"debitCards,omitempty"`
+	Transactions  []Transaction   `gorm:"foreignKey:UserID;references:UserID" json:"transactions,omitempty"`
+	Banners       []Banner        `gorm:"foreignKey:UserID;references:UserID" json:"banners,omitempty"`
+
 	UserPin      *UserPin      `gorm:"foreignKey:UserID;references:UserID" json:"userPin,omitempty"`
 	UserGreeting *UserGreeting `gorm:"foreignKey:UserID;references:UserID" json:"userGreeting,omitempty"`
 }

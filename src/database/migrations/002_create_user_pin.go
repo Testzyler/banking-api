@@ -10,7 +10,7 @@ import (
 )
 
 var createUserPin = &Migration{
-	Number: 3,
+	Number: 2,
 	Name:   "create user pin",
 
 	Forwards: func(db *gorm.DB) error {
@@ -19,9 +19,10 @@ var createUserPin = &Migration{
 }
 
 func Migrate_CreateUserPin(db *gorm.DB) error {
-	if err := db.Migrator().AutoMigrate(&models.UserPin{}); err != nil {
+	if err := db.Migrator().CreateTable(&models.UserPin{}); err != nil {
 		return err
 	}
+	logger.Info("Created UserPin table.")
 
 	const defaultPIN = "123456"
 	hashedDefaultPIN, err := bcrypt.GenerateFromPassword([]byte(defaultPIN), bcrypt.DefaultCost)

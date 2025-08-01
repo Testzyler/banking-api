@@ -67,6 +67,13 @@ var (
 		Details:        "Authentication credentials are missing or invalid",
 	}
 
+	ErrTokenExpired = &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "Token expired",
+		Details:        "The token has expired",
+	}
+
 	ErrForbidden = &response.ErrorResponse{
 		HttpStatusCode: fiber.StatusForbidden,
 		Code:           response.ErrCodeForbidden,

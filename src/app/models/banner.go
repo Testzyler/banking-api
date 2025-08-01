@@ -7,6 +7,8 @@ type Banner struct {
 	Description string `gorm:"column:description"`
 	Image       string `gorm:"column:image"`
 	DummyCol    string `gorm:"column:dummy_col_11"`
+
+	User *User `gorm:"foreignKey:UserID;references:UserID" json:"user,omitempty"`
 }
 
 func (Banner) TableName() string {

@@ -13,15 +13,18 @@ func AuthMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
+			c.Locals("status", fiber.StatusUnauthorized)
 			return exception.ErrUnauthorized
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.Locals("status", fiber.StatusUnauthorized)
 			return exception.ErrUnauthorized
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token == "" {
+			c.Locals("status", fiber.StatusUnauthorized)
 			return exception.ErrUnauthorized
 		}
 
@@ -29,6 +32,7 @@ func AuthMiddleware() fiber.Handler {
 
 		claims, err := jwtService.ValidateAccessToken(token)
 		if err != nil {
+			c.Locals("status", fiber.StatusUnauthorized)
 			return err
 		}
 

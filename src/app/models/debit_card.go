@@ -5,6 +5,10 @@ type DebitCard struct {
 	UserID   string `json:"user_id" gorm:"column:user_id"`
 	Name     string `json:"name" gorm:"column:name"`
 	DummyCol string `json:"dummy_col_7,omitempty" gorm:"column:dummy_col_7"`
+
+	DebitCardDetail DebitCardDetail `gorm:"foreignKey:CardID"`
+	DebitCardDesign DebitCardDesign `gorm:"foreignKey:CardID"`
+	DebitCardStatus DebitCardStatus `gorm:"foreignKey:CardID"`
 }
 
 func (DebitCard) TableName() string {

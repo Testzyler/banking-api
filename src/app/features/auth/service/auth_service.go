@@ -62,6 +62,12 @@ func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.Toke
 		return nil, exception.NewInternalError(err)
 	}
 
+	tokenResponse.UserID = user.UserID
+	tokenResponse.User = entities.User{
+		UserID: user.UserID,
+		Name:   user.Name,
+	}
+
 	return tokenResponse, nil
 }
 

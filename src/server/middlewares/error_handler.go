@@ -9,23 +9,15 @@ import (
 // ErrorHandler
 func ErrorHandler() fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
-		requestLogger := GetRequestLogger(c)
-
 		// Check if it's a custom error response type
 		if errResp, ok := err.(*response.ErrorResponse); ok {
-			if errResp.HttpStatusCode >= 500 {
-				requestLogger.Errorf("Server error: %s (Source: %s)", errResp.Message, errResp.Source)
-			} else {
-				requestLogger.Warnf("Client error: %s", errResp.Message)
-			}
 			return c.Status(errResp.HttpStatusCode).JSON(errResp)
 		}
 
 		// Check if it's a fiber error
 		if fiberErr, ok := err.(*fiber.Error); ok {
-			requestLogger.Warnf("Fiber error: %s", fiberErr.Message)
 			return c.Status(fiberErr.Code).JSON(&response.ErrorResponse{
-				HttpStatusCode: fiberErr.Code,
+				HttpStatusCode: fiber.StatusInternalServerError,
 				Code:           response.ErrCodeBadRequest,
 				Message:        fiberErr.Message,
 				Details:        "Request processing failed",
@@ -33,7 +25,7 @@ func ErrorHandler() fiber.ErrorHandler {
 		}
 
 		responseError := exception.NewInternalError(err)
-		return c.Status(responseError.HttpStatusCode).JSON(responseError)
+		return c.Status(fiber.StatusInternalServerError).JSON(responseError)
 	}
 }
 
