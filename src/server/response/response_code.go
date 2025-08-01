@@ -10,8 +10,7 @@ func newResponseCode(code uint64) ResponseCode {
 
 var (
 	// Success codes
-	SystemOperationSuccess = newResponseCode(0)
-	SuccessCodeOK          = newResponseCode(200)
+	Success = newResponseCode(200)
 
 	// 4xx Client Error codes
 	ErrCodeNotFound         = newResponseCode(404)
@@ -29,7 +28,7 @@ var (
 
 var CustomResponseMessages = map[ResponseCode]string{
 	// Success codes
-	SystemOperationSuccess: "Request completed successfully",
+	Success: "Request completed successfully",
 
 	// Client Error codes
 	ErrCodeNotFound:         "Not Found",

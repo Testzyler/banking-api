@@ -38,7 +38,7 @@ func (h *authHandler) VerifyPin(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
-		Code:    response.SuccessCodeOK,
+		Code:    response.Success,
 		Message: "PIN verified successfully",
 		Data:    tokenResponse,
 	})
@@ -68,7 +68,7 @@ func (h *authHandler) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response.SuccessResponse{
-		Code:    response.SuccessCodeOK,
+		Code:    response.Success,
 		Message: "Token refreshed successfully",
 		Data:    tokenResponse,
 	})

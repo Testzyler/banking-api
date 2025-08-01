@@ -9,7 +9,6 @@ type Account struct {
 	Currency      string `gorm:"column:currency"`
 	AccountNumber string `gorm:"column:account_number"`
 	Issuer        string `gorm:"column:issuer"`
-	DummyCol      string `gorm:"column:dummy_col_3"`
 
 	AccountDetails AccountDetail  `gorm:"foreignKey:AccountID"`
 	AccountBalance AccountBalance `gorm:"foreignKey:AccountID"`
@@ -24,7 +23,6 @@ type AccountBalance struct {
 	AccountID string  `gorm:"column:account_id;primaryKey"`
 	UserID    string  `gorm:"column:user_id"`
 	Amount    float64 `gorm:"column:amount"`
-	DummyCol  string  `gorm:"column:dummy_col_4"`
 }
 
 func (AccountBalance) TableName() string {
@@ -37,7 +35,6 @@ type AccountDetail struct {
 	Color         string  `gorm:"column:color"`
 	IsMainAccount bool    `gorm:"column:is_main_account"`
 	Progress      float64 `gorm:"column:progress"`
-	DummyCol      string  `gorm:"column:dummy_col_5"`
 }
 
 func (AccountDetail) TableName() string {

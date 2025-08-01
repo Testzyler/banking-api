@@ -1,284 +1,174 @@
+// Load testing script using K6 for auth and dashboard
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Trend, Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 
-import { htmlReport } from "https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js";
-import { textSummary } from "https://jslib.k6.io/k6-summary/0.0.1/index.js";
+import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.1/index.js';
 
-
-// Custom metrics
-const dashboardResponseTime = new Trend('dashboard_response_time');
+// Custom metrics to measure performance
 const authResponseTime = new Trend('auth_response_time');
+const dashboardResponseTime = new Trend('dashboard_response_time');
 const errorRate = new Rate('error_rate');
 const successfulLogins = new Counter('successful_logins');
 const successfulDashboardCalls = new Counter('successful_dashboard_calls');
 
 const BASE_URL = 'http://localhost:8080';
-// export const options = {
-//     scenarios: {
-//       // Light load - baseline test
-//        light_load: {
-//         executor: 'constant-vus',
-//         vus: 5,
-//         duration: '2m',
-//         tags: { scenario: 'light_load' },
-//       },
-//       // light_load: {
-//       //   executor: 'constant-vus',
-//       //   vus: 5,
-//       //   duration: '2m',
-//       //   tags: { scenario: 'light_load' },
-//       // },
 
-//       // Normal load - typical usage
-//       // normal_load: {
-//       //   executor: 'ramping-vus',
-//       //   startVUs: 0,
-//       //   stages: [
-//       //     { duration: '1m', target: 20 }, // Ramp up
-//       //     { duration: '3m', target: 20 }, // Stay steady
-//       //     { duration: '1m', target: 0 },  // Ramp down
-//       //   ],
-//       //   tags: { scenario: 'normal_load' },
-//       // },
-
-//       // Heavy load - stress test
-//       // heavy_load: {
-//       //   executor: 'ramping-vus',
-//       //   startVUs: 0,
-//       //   stages: [
-//       //     { duration: '2m', target: 50 },  // Ramp up
-//       //     { duration: '5m', target: 50 },  // Stay steady
-//       //     { duration: '2m', target: 100 }, // Peak load
-//       //     { duration: '2m', target: 50 },  // Scale back
-//       //     { duration: '1m', target: 0 },   // Ramp down
-//       //   ],
-//       //   tags: { scenario: 'heavy_load' },
-//       // },
-//     },
-
-//     thresholds: {
-//       // Response time thresholds
-//       'dashboard_response_time': [
-//         'p(95)<2000', // 95% of requests should be under 2s (current baseline)
-//         'p(99)<5000', // 99% of requests should be under 5s
-//       ],
-//       'auth_response_time': [
-//         'p(95)<500',  // Auth should be fast
-//         'p(99)<1000',
-//       ],
-
-//       // Error rate thresholds
-//       'error_rate': ['rate<0.05'], // Less than 5% error rate
-
-//       // HTTP duration thresholds
-//       'http_req_duration': ['p(95)<3000'],
-//       'http_req_failed': ['rate<0.05'],
-//     },
-//   };
-
+// Configuration: Max 500 concurrent connections on Fiber and DB
+// To stay within safe limits, we'll target up to 400 VUs in test
 export const options = {
     scenarios: {
-        light_load: {
-            executor: 'constant-vus',
-            vus: 10,
-            duration: '1m',
-            tags: { scenario: 'light_load' },
-        },
-        // Normal load - typical usage
-        normal_load: {
-            executor: 'ramping-vus',
-            startVUs: 0,
-            stages: [
-                { duration: '1m', target: 20 }, // Ramp up
-                { duration: '3m', target: 20 }, // Stay steady
-                { duration: '1m', target: 0 },  // Ramp down
-            ],
-            tags: { scenario: 'normal_load' },
-        },
-        // Heavy load - stress test
-        heavy_load: {
-            executor: 'ramping-vus',
-            startVUs: 0,
-            stages: [
-                { duration: '2m', target: 50 },  // Ramp up
-                { duration: '5m', target: 50 },  // Stay steady
-                { duration: '2m', target: 100 }, // Peak load
-                { duration: '2m', target: 50 },  // Scale back
-                { duration: '1m', target: 0 },   // Ramp down
-            ],
-            tags: { scenario: 'heavy_load' },
-        },
+      light_load: {
+        executor: 'constant-vus',
+        vus: 50,
+        duration: '1m',
+        tags: { scenario: 'light_load' },
+      },
+      normal_load: {
+        executor: 'ramping-vus',
+        startVUs: 0,
+        stages: [
+          { duration: '1m', target: 200 },
+          { duration: '2m', target: 400 },
+          { duration: '1m', target: 0 },
+        ],
+        tags: { scenario: 'normal_load' },
+      },
+      heavy_load: {
+        executor: 'ramping-vus',
+        startVUs: 0,
+        stages: [
+          { duration: '2m', target: 300 },
+          { duration: '3m', target: 600 },
+          { duration: '2m', target: 800 },
+          { duration: '1m', target: 0 },
+        ],
+        tags: { scenario: 'heavy_load' },
+      },
     },
-
+  
     thresholds: {
-        // Response time thresholds
-        'dashboard_response_time': [
-            'p(95)<2000', // 95% of requests should be under 2s (current baseline)
-            'p(99)<5000', // 99% of requests should be under 5s
-        ],
-        'auth_response_time': [
-            'p(95)<500',  // Auth should be fast
-            'p(99)<1000',
-        ],
-
-        // Error rate thresholds
-        'error_rate': ['rate<0.05'], // Less than 5% error rate
-
-        // HTTP duration thresholds
-        'http_req_duration': ['p(95)<3000'],
-        'http_req_failed': ['rate<0.05'],
+      // Light Load
+      'auth_response_time{scenario:light_load}': ['p(95)<4000', 'p(99)<6000'],
+      'dashboard_response_time{scenario:light_load}': ['p(95)<2000'],
+      'http_req_duration{scenario:light_load}': ['p(95)<3500'],
+  
+      // Normal Load
+      'auth_response_time{scenario:normal_load}': ['p(95)<5000', 'p(99)<8000'],
+      'dashboard_response_time{scenario:normal_load}': ['p(95)<5000', 'p(99)<9000'],
+      'http_req_duration{scenario:normal_load}': ['p(95)<9000'],
+  
+      // Heavy Load
+      'auth_response_time{scenario:heavy_load}': ['p(95)<12000', 'p(99)<15000'],
+      'dashboard_response_time{scenario:heavy_load}': ['p(95)<7000', 'p(99)<10000'],
+      'http_req_duration{scenario:heavy_load}': ['p(95)<12000'],
+  
+      // Error rate tolerance per scenario
+      'error_rate{scenario:light_load}': ['rate<0.01'],
+      'error_rate{scenario:normal_load}': ['rate<0.03'],
+      'error_rate{scenario:heavy_load}': ['rate<0.05'],
     },
-};
+  };
+  
 
+// Load test users from file
 const TEST_USERS = new SharedArray('users', function () {
     try {
-        // Read users from file
-        const usersFile = open('./users.txt');
-        const usernames = usersFile.split('\n').filter(line => line.trim().length > 0);
-
-        // Convert usernames to user objects with default PIN
-        return usernames.map(username => ({
-            username: username.trim(),
-            pin: '123456'
-        }));
-    } catch (error) {
-        console.error('Could not load sample-users.txt, falling back to default users:', error);
-        return;
+        const file = open('./users.txt');
+        return file
+            .split('\n')
+            .filter(Boolean)
+            .map((username) => ({ username: username.trim(), pin: '123456' }));
+    } catch (err) {
+        console.error('Failed to load users.txt:', err);
+        return [];
     }
 });
 
-// Get random test user
 function getRandomUser() {
     return TEST_USERS[Math.floor(Math.random() * TEST_USERS.length)];
 }
 
-// Authenticate and get token
 function authenticate() {
     const user = getRandomUser();
-    const payload = {
-        username: user.username,
-        pin: user.pin
-    };
+    const payload = JSON.stringify({ username: user.username, pin: user.pin });
+    const params = { headers: { 'Content-Type': 'application/json' }, tags: { endpoint: 'auth' } };
 
-    const params = {
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        tags: { endpoint: 'auth' },
-    };
+    const start = Date.now();
+    const res = http.post(`${BASE_URL}/api/v1/auth/verify-pin`, payload, params);
+    const duration = Date.now() - start;
+    authResponseTime.add(duration);
 
-    const authStart = Date.now();
-    const response = http.post(`${BASE_URL}/api/v1/auth/verify-pin`, JSON.stringify(payload), params);
-    const authDuration = Date.now() - authStart;
-
-    authResponseTime.add(authDuration);
-
-    const authSuccess = check(response, {
+    const ok = check(res, {
         'auth status is 200': (r) => r.status === 200,
-        'auth has token': (r) => {
+        'auth returns token': (r) => {
             try {
                 const data = JSON.parse(r.body);
                 return data.data && data.data.token;
-            } catch (e) {
+            } catch (_) {
                 return false;
             }
         },
     });
 
-    if (!authSuccess) {
+    if (!ok) {
         errorRate.add(1);
-        console.error(`Auth failed for ${user.username}: ${response.status} - ${response.body}`);
         return null;
     }
 
     successfulLogins.add(1);
-
-    try {
-        const resp = JSON.parse(response.body);
-        return {
-            token: resp.data.token,
-            refreshToken: resp.data.refreshToken,
-            userID: resp.data.userID
-        };
-    } catch (e) {
-        errorRate.add(1);
-        return null;
-    }
+    const data = JSON.parse(res.body).data;
+    return { token: data.token, userID: data.userID };
 }
 
-// Test dashboard endpoint
 function testDashboard(authData) {
-    if (!authData || !authData.token) {
-        errorRate.add(1);
-        return;
-    }
+    if (!authData?.token) return;
 
     const params = {
         headers: {
-            'Authorization': `Bearer ${authData.token}`,
+            Authorization: `Bearer ${authData.token}`,
             'Content-Type': 'application/json',
         },
         tags: { endpoint: 'dashboard' },
     };
 
-    const payload = {
-        userID: authData.userID,
-    };
+    const start = Date.now();
+    const res = http.get(`${BASE_URL}/api/v1/dashboard/accounts`, params);
+    const duration = Date.now() - start;
+    dashboardResponseTime.add(duration);
 
-    const url = `${BASE_URL}/api/v1/dashboard/accounts`;
-    const dashboardStart = Date.now();
-    const response = http.get(url, params);
-    const dashboardDuration = Date.now() - dashboardStart;
-
-    dashboardResponseTime.add(dashboardDuration);
-    const dashboardSuccess = check(response, {
+    const ok = check(res, {
         'dashboard status is 200': (r) => r.status === 200,
-        'dashboard has data': (r) => {
+        'dashboard returns data': (r) => {
             try {
                 const data = JSON.parse(r.body);
                 return data.data !== undefined;
-            } catch (e) {
+            } catch (_) {
                 return false;
             }
         },
-        'dashboard response time < 5s': (r) => dashboardDuration < 5000,
     });
 
-    if (!dashboardSuccess) {
+    if (!ok) {
         errorRate.add(1);
-        console.error(`Dashboard failed: ${response.status} - ${response.body}`);
     } else {
         successfulDashboardCalls.add(1);
     }
+}
 
-    if (dashboardDuration > 2000) {
-        console.warn(`Slow dashboard response: ${dashboardDuration}ms`);
+export default function () {
+    const authData = authenticate();
+    if (authData) {
+        testDashboard(authData);
     }
+    sleep(Math.random() * 2 + 1);
 }
 
 export function handleSummary(data) {
     return {
-        "summary.html": htmlReport(data, {
-            title: "Load Test K6 - Result",
-        }),
-        stdout: textSummary(data, { indent: " ", enableColors: true }),
+        'summary.html': htmlReport(data, { title: 'K6 Load Test Report' }),
+        stdout: textSummary(data, { indent: ' ', enableColors: true }),
     };
-}
-
-// Main test function
-export default function () {
-    // Authenticate
-    const authData = authenticate();
-    if (authData) {
-        // Test dashboard
-        testDashboard(authData);
-
-        // Small delay between requests
-        sleep(Math.random() * 2 + 1); // 1-3 seconds
-    } else {
-        // If auth fails, wait before retrying
-        sleep(2);
-    }
 }

@@ -6,7 +6,6 @@ type User struct {
 	UserID   string `gorm:"column:user_id;primaryKey"`
 	Name     string `gorm:"column:name"`
 	Password string `gorm:"column:password"`
-	DummyCol string `gorm:"column:dummy_col_1"`
 
 	// Relationships - Proper GORM associations
 	Accounts      []Account       `gorm:"foreignKey:UserID;references:UserID" json:"accounts,omitempty"`
@@ -27,7 +26,6 @@ func (User) TableName() string {
 type UserGreeting struct {
 	UserID   string `gorm:"column:user_id;primaryKey"`
 	Greeting string `gorm:"column:greeting"`
-	DummyCol string `gorm:"column:dummy_col_2"`
 }
 
 func (UserGreeting) TableName() string {

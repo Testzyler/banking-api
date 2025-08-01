@@ -59,7 +59,6 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 				expectedUser := &models.User{
 					UserID:   "user123",
 					Name:     "John Doe",
-					DummyCol: "test_data",
 				}
 				mockRepo.On("GetByID", "user123").Return(expectedUser, nil)
 			},
@@ -67,7 +66,6 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 			expectUser: &models.User{
 				UserID:   "user123",
 				Name:     "John Doe",
-				DummyCol: "test_data",
 			},
 		},
 		{
@@ -152,7 +150,6 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 				expectedUser := &models.User{
 					UserID:   "ผู้ใช้123",
 					Name:     "Thai User",
-					DummyCol: "test_data",
 				}
 				mockRepo.On("GetByID", "ผู้ใช้123").Return(expectedUser, nil)
 			},
@@ -160,7 +157,6 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 			expectUser: &models.User{
 				UserID:   "ผู้ใช้123",
 				Name:     "Thai User",
-				DummyCol: "test_data",
 			},
 		},
 	}
@@ -190,7 +186,6 @@ func TestUserService_GetUserByID_MultipleScenarios(t *testing.T) {
 				if tt.expectUser != nil {
 					assert.Equal(t, tt.expectUser.UserID, user.UserID)
 					assert.Equal(t, tt.expectUser.Name, user.Name)
-					assert.Equal(t, tt.expectUser.DummyCol, user.DummyCol)
 				}
 			}
 
@@ -219,8 +214,8 @@ func TestUserService_GetAllUsers_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "Alice", DummyCol: "data1"},
-					{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+					{UserID: "user1", Name: "Alice"},
+					{UserID: "user2", Name: "Bob"},
 				}
 				mockRepo.On("GetAll", 10, 1, "").Return(expectedUsers, nil)
 			},
@@ -236,7 +231,7 @@ func TestUserService_GetAllUsers_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "Alice", DummyCol: "data1"},
+					{UserID: "user1", Name: "Alice"},
 				}
 				mockRepo.On("GetAll", 5, 1, "alice").Return(expectedUsers, nil)
 			},
@@ -265,8 +260,8 @@ func TestUserService_GetAllUsers_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user6", Name: "Frank", DummyCol: "data6"},
-					{UserID: "user7", Name: "Grace", DummyCol: "data7"},
+					{UserID: "user6", Name: "Frank"},
+					{UserID: "user7", Name: "Grace"},
 				}
 				mockRepo.On("GetAll", 5, 2, "").Return(expectedUsers, nil)
 			},
@@ -308,7 +303,7 @@ func TestUserService_GetAllUsers_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "thai_user", Name: "Thai User", DummyCol: "thai_data"},
+					{UserID: "thai_user", Name: "Thai User"},
 				}
 				mockRepo.On("GetAll", 10, 1, "ผู้ใช้").Return(expectedUsers, nil)
 			},
@@ -368,8 +363,8 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "Alice", DummyCol: "data1"},
-					{UserID: "user2", Name: "Bob", DummyCol: "data2"},
+					{UserID: "user1", Name: "Alice"},
+					{UserID: "user2", Name: "Bob"},
 				}
 				mockRepo.On("GetAllWithCount", 10, 1, "").Return(expectedUsers, int64(25), nil)
 			},
@@ -393,7 +388,7 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user21", Name: "User21", DummyCol: "data21"},
+					{UserID: "user21", Name: "User21"},
 				}
 				mockRepo.On("GetAllWithCount", 10, 3, "").Return(expectedUsers, int64(21), nil)
 			},
@@ -417,8 +412,8 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user6", Name: "TestUser6", DummyCol: "data6"},
-					{UserID: "user7", Name: "TestUser7", DummyCol: "data7"},
+					{UserID: "user6", Name: "TestUser6"},
+					{UserID: "user7", Name: "TestUser7"},
 				}
 				mockRepo.On("GetAllWithCount", 5, 2, "test").Return(expectedUsers, int64(12), nil)
 			},
@@ -463,8 +458,8 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "user1", Name: "User1", DummyCol: "data1"},
-					{UserID: "user2", Name: "User2", DummyCol: "data2"},
+					{UserID: "user1", Name: "User1"},
+					{UserID: "user2", Name: "User2"},
 				}
 				mockRepo.On("GetAllWithCount", 20, 1, "").Return(expectedUsers, int64(5), nil)
 			},
@@ -501,7 +496,7 @@ func TestUserService_GetAllUsersWithMeta_MultipleScenarios(t *testing.T) {
 			},
 			mockSetup: func(mockRepo *MockUserRepository) {
 				expectedUsers := []*models.User{
-					{UserID: "thai_user", Name: "Thai User", DummyCol: "thai_data"},
+					{UserID: "thai_user", Name: "Thai User"},
 				}
 				mockRepo.On("GetAllWithCount", 10, 1, "ผู้ใช้").Return(expectedUsers, int64(1), nil)
 			},

@@ -28,7 +28,7 @@ func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error {
 	// if err != nil {
 	// 	return err
 	// }
-	
+
 	// Optimized
 	data, err := h.service.GetDashboardDataWithTrx(userID)
 	if err != nil {
@@ -36,6 +36,7 @@ func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
+		Code:    response.Success,
 		Message: "Dashboard data retrieved successfully",
 		Data:    data,
 	})
