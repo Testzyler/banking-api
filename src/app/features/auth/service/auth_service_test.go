@@ -304,3 +304,415 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthService_VerifyPin_FailedAttempts_And_Locking(t *testing.T) {
+	// Create test pin hash
+	hashedPin, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+
+	tests := []struct {
+		name                      string
+		params                    entities.PinVerifyParams
+		currentFailedAttempts     int
+		mockSetup                 func(*MockAuthRepository, *MockJwtService)
+		expectError               bool
+		expectLocked              bool
+		expectedRemainingAttempts int
+		errorContains             string
+	}{
+		{
+			name: "first failed attempt - not locked yet",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			currentFailedAttempts: 0,
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 0,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 1).Return(nil)
+			},
+			expectError:               true,
+			expectLocked:              false,
+			expectedRemainingAttempts: 2, // threshold=3, newAttempts=1, remaining=2
+			errorContains:             "2 attempts remaining",
+		},
+		{
+			name: "second failed attempt - still not locked",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			currentFailedAttempts: 1,
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 1,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 2).Return(nil)
+			},
+			expectError:               true,
+			expectLocked:              false,
+			expectedRemainingAttempts: 1, // threshold=3, newAttempts=2, remaining=1
+			errorContains:             "1 attempts remaining",
+		},
+		{
+			name: "third failed attempt - PIN gets locked",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			currentFailedAttempts: 2,
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 2,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 3).Return(nil)
+				mockRepo.On("UpdateUserPinLockedUntil", "user123", mock.AnythingOfType("*time.Time")).Return(nil)
+			},
+			expectError:   true,
+			expectLocked:  true,
+			errorContains: "PIN locked",
+		},
+		{
+			name: "fourth failed attempt - longer lock duration",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			currentFailedAttempts: 3,
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 3,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 4).Return(nil)
+				mockRepo.On("UpdateUserPinLockedUntil", "user123", mock.AnythingOfType("*time.Time")).Return(nil)
+			},
+			expectError:   true,
+			expectLocked:  true,
+			errorContains: "PIN locked",
+		},
+		{
+			name: "many failed attempts - should cap at max duration",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			currentFailedAttempts: 10, // Very high number to test max duration cap
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 10,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 11).Return(nil)
+				mockRepo.On("UpdateUserPinLockedUntil", "user123", mock.AnythingOfType("*time.Time")).Return(nil)
+			},
+			expectError:   true,
+			expectLocked:  true,
+			errorContains: "PIN locked",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAuthRepository)
+			mockJwt := new(MockJwtService)
+
+			config := &config.Config{
+				Auth: &config.AuthConfig{
+					Pin: &config.PinConfig{
+						BaseDuration:    10 * time.Second,
+						LockThreshold:   3,
+						MaxLockDuration: 300 * time.Second,
+					},
+				},
+			}
+
+			service := NewAuthService(mockRepo, mockJwt, config)
+
+			// Setup mock expectations
+			tt.mockSetup(mockRepo, mockJwt)
+
+			// Act
+			tokenResponse, err := service.VerifyPin(tt.params)
+
+			// Assert
+			assert.Error(t, err)
+			assert.Nil(t, tokenResponse)
+
+			if tt.errorContains != "" {
+				assert.Contains(t, err.Error(), tt.errorContains)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+			mockJwt.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthService_VerifyPin_AlreadyLocked(t *testing.T) {
+	// Create test pin hash
+	hashedPin, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+
+	tests := []struct {
+		name          string
+		params        entities.PinVerifyParams
+		lockedUntil   time.Time
+		mockSetup     func(*MockAuthRepository, *MockJwtService)
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "PIN is currently locked",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "123456", // Even correct PIN should fail when locked
+			},
+			lockedUntil: time.Now().Add(30 * time.Minute), // Locked for 30 minutes
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				lockedUntil := time.Now().Add(30 * time.Minute)
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 5,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    &lockedUntil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				// No other repository calls expected since PIN is locked
+			},
+			expectError:   true,
+			errorContains: "PIN locked",
+		},
+		{
+			name: "PIN lock has expired - should work normally",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "123456", // Correct PIN
+			},
+			lockedUntil: time.Now().Add(-1 * time.Minute), // Expired 1 minute ago
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				expiredLockTime := time.Now().Add(-1 * time.Minute)
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 3,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    &expiredLockTime, // Expired
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 0).Return(nil)
+				mockRepo.On("UpdateUserPinLockedUntil", "user123", (*time.Time)(nil)).Return(nil)
+
+				tokenResponse := &entities.TokenResponse{
+					Token:        "access_token",
+					RefreshToken: "refresh_token",
+					Expiry:       time.Now().Add(time.Hour),
+				}
+				mockJwt.On("GenerateTokens", "user123", "testuser").Return(tokenResponse, nil)
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAuthRepository)
+			mockJwt := new(MockJwtService)
+
+			config := &config.Config{
+				Auth: &config.AuthConfig{
+					Pin: &config.PinConfig{
+						BaseDuration:    10 * time.Second,
+						LockThreshold:   3,
+						MaxLockDuration: 300 * time.Second,
+					},
+				},
+			}
+
+			service := NewAuthService(mockRepo, mockJwt, config)
+
+			// Setup mock expectations
+			tt.mockSetup(mockRepo, mockJwt)
+
+			// Act
+			tokenResponse, err := service.VerifyPin(tt.params)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, tokenResponse)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, tokenResponse)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+			mockJwt.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthService_VerifyPin_RepositoryErrors_During_FailedAttempts(t *testing.T) {
+	// Create test pin hash
+	hashedPin, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+
+	tests := []struct {
+		name          string
+		params        entities.PinVerifyParams
+		mockSetup     func(*MockAuthRepository, *MockJwtService)
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "error updating failed attempts count",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 0,
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 1).Return(errors.New("database error"))
+			},
+			expectError:   true,
+			errorContains: "database error",
+		},
+		{
+			name: "error updating lock time when locking PIN",
+			params: entities.PinVerifyParams{
+				Username: "testuser",
+				Pin:      "wrong123",
+			},
+			mockSetup: func(mockRepo *MockAuthRepository, mockJwt *MockJwtService) {
+				user := &models.User{
+					UserID:   "user123",
+					Name:     "testuser",
+					Password: "hashedpassword",
+					UserPin: &models.UserPin{
+						UserID:            "user123",
+						HashedPin:         string(hashedPin),
+						FailedPinAttempts: 2, // Will reach threshold
+						LastPinAttemptAt:  nil,
+						PinLockedUntil:    nil,
+					},
+				}
+				mockRepo.On("GetUserWithPin", "testuser").Return(user, nil)
+				mockRepo.On("UpdateUserPinFailedAttempts", "user123", 3).Return(nil)
+				mockRepo.On("UpdateUserPinLockedUntil", "user123", mock.AnythingOfType("*time.Time")).Return(errors.New("lock update error"))
+			},
+			expectError:   true,
+			errorContains: "PIN locked", // Should still return lock error even if update fails
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAuthRepository)
+			mockJwt := new(MockJwtService)
+
+			config := &config.Config{
+				Auth: &config.AuthConfig{
+					Pin: &config.PinConfig{
+						BaseDuration:    10 * time.Second,
+						LockThreshold:   3,
+						MaxLockDuration: 300 * time.Second,
+					},
+				},
+			}
+
+			service := NewAuthService(mockRepo, mockJwt, config)
+
+			// Setup mock expectations
+			tt.mockSetup(mockRepo, mockJwt)
+
+			// Act
+			tokenResponse, err := service.VerifyPin(tt.params)
+
+			// Assert
+			assert.Error(t, err)
+			assert.Nil(t, tokenResponse)
+			if tt.errorContains != "" {
+				assert.Contains(t, err.Error(), tt.errorContains)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+			mockJwt.AssertExpectations(t)
+		})
+	}
+}

@@ -39,6 +39,7 @@ func Migrate_DeleteUnUsedColumns(db *gorm.DB) error {
 		if err := db.Exec(stmt).Error; err != nil {
 			logger.Errorf("failed to execute statement: %s, error: %w", stmt, err)
 		}
+		logger.Infof("executed statement: %s", stmt)
 	}
 
 	logger.Infof("Index and FK created successfully")
