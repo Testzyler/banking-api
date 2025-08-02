@@ -264,51 +264,6 @@ Authorization: Bearer {access_token}
 }
 ```
 
-### User Endpoints
-
-#### Get All Users
-
-Retrieve paginated list of users with search functionality.
-
-```http
-GET /api/v1/users?page=1&perPage=10
-```
-
-| Parameter | Type     | Description                        |
-| :-------- | :------- | :--------------------------------- |
-| `page`    | `integer` | Page number (default: 1)          |
-| `perPage` | `integer` | Items per page (default: 10)      |
-
-**Response:**
-```json
-{
-  "code": 10200,
-  "message": "User retrieved successfully",
-  "data": [...],
-  "meta": {
-        "page": 1,
-        "perPage": 100,
-        "total": 1000000,
-        "totalPages": 10000,
-        "hasNext": true,
-        "hasPrevious": false
-    }
-}
-```
-
-#### Get User by ID
-
-Retrieve specific user information.
-
-```http
-GET /api/v1/users/{id}
-```
-
-| Parameter | Type     | Description                       |
-| :-------- | :------- | :-------------------------------- |
-| `id`      | `string` | **Required**. User ID to fetch   |
-
-
 #### HTTP Status Codes
 
 | Status Code | Description |
@@ -319,31 +274,6 @@ GET /api/v1/users/{id}
 | `403`       | Forbidden |
 | `404`       | Not Found |
 | `500`       | Internal Server Error |
-
-
-## Database Schema
-
-The database consists of the following main tables:
-
-### Core Tables
-- **`users`** - User basic information
-- **`user_greetings`** - Personalized user greetings
-
-### Account Management
-- **`accounts`** - Account information
-- **`account_balances`** - Real-time balance tracking
-- **`account_details`** - Account configuration
-- **`account_flags`** - Account feature flags
-
-### Card Management
-- **`debit_cards`** - Basic card information
-- **`debit_card_details`** - Card numbers and issuer info
-- **`debit_card_status`** - Card status tracking
-- **`debit_card_design`** - Card design customization
-
-### Transaction & UI
-- **`transactions`** - Transaction records
-- **`banners`** - UI banner content
 
 
 ## Available Commands
@@ -420,7 +350,6 @@ docker-compose ps
 docker-compose logs -f banking-api
 ```
 
-
 ## Testing
 
 ### Performance Testing
@@ -457,50 +386,6 @@ The project includes comprehensive stress testing using k6 with multiple load sc
 cd stress_test
 k6 run stress-test.js
 ```
-
-**Test Summary:**
-- ✅ **Multiple load scenarios** with up to 800 concurrent users
-- ✅ **Complete transaction cycles** (auth + dashboard calls)
-- ✅ **Custom metrics tracking** for auth and dashboard performance
-- ✅ **Comprehensive error handling** and rate monitoring
-- 📊 **Max 800 concurrent users** stress tested successfully
-
-**Performance Thresholds:**
-
-*Light Load (50 VUs):*
-- ✅ Auth response time 95th percentile < 300ms
-- ✅ Dashboard response time 95th percentile < 300ms
-- ✅ Error rate < 1%
-- ✅ Transaction rate > 25 TPS
-
-*Normal Load (up to 400 VUs):*
-- ✅ Auth response time 95th percentile < 3,000ms
-- ✅ Dashboard response time 95th percentile < 3,000ms  
-- ✅ Error rate < 3%
-- ✅ Transaction rate > 50 TPS
-
-*Heavy Load (up to 800 VUs):*
-- ✅ Auth response time 95th percentile < 8,000ms
-- ✅ Dashboard response time 95th percentile < 8,000ms
-- ✅ Error rate < 5%
-- ✅ Transaction rate > 75 TPS
-
-![Stress Test Result](summary-k6.png)
-
-**Test Features:**
-- **25,000 test users** loaded from users.txt
-- **Real authentication flow** with PIN verification
-- **JWT token generation and validation**
-- **Dashboard data retrieval** with authorization
-- **Error rate monitoring** across all scenarios
-- **Transaction counting** for complete user flows
-- **Custom metrics** for auth and dashboard response times
-
-**Database Under Load:**
-- **MySQL connection pooling** handles up to 800 concurrent connections
-- **GORM optimized queries** maintain performance under stress
-- **Transaction integrity** preserved during high load
-- **Connection limits** respected (500 max on Fiber and DB)
 
 ### Unit Testing
 

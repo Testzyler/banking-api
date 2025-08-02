@@ -21,12 +21,7 @@ type MockDashboardService struct {
 	mock.Mock
 }
 
-func (m *MockDashboardService) GetDashboardData(params entities.DashboardParams) (entities.DashboardResponse, error) {
-	args := m.Called(params)
-	return args.Get(0).(entities.DashboardResponse), args.Error(1)
-}
-
-func (m *MockDashboardService) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) {
+func (m *MockDashboardService) GetDashboardData(userID string) (entities.DashboardResponse, error) {
 	args := m.Called(userID)
 	return args.Get(0).(entities.DashboardResponse), args.Error(1)
 }

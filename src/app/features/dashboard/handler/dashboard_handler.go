@@ -24,13 +24,7 @@ func NewDashboardHandler(router fiber.Router, service service.DashboardService) 
 func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error {
 	userID := c.Locals("user").(*entities.Claims).UserID
 
-	// data, err := h.service.GetDashboardData(entities.DashboardParams{UserID: userID})
-	// if err != nil {
-	// 	return err
-	// }
-
-	// Optimized
-	data, err := h.service.GetDashboardDataWithTrx(userID)
+	data, err := h.service.GetDashboardData(userID)
 	if err != nil {
 		return err
 	}
