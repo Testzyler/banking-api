@@ -54,7 +54,7 @@ func TestDashboardRepository_GetTotalBalance(t *testing.T) {
 			}), &gorm.Config{})
 			assert.NoError(t, err)
 
-			repo := NewDashboardRepository(gormDB)
+			repo := NewHomeRepository(gormDB)
 
 			// Setup mock expectations
 			tt.mockSetup(mock)

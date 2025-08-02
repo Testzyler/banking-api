@@ -6,22 +6,22 @@ import (
 	"gorm.io/gorm"
 )
 
-type dashboardRepository struct {
+type homeRepository struct {
 	db *gorm.DB
 }
 
-type DashboardRepository interface {
+type HomeRepository interface {
 	GetTotalBalance(userID string) float64
-	GetDashboardData(userID string) (entities.DashboardResponse, error)
+	GetHomeData(userID string) (entities.HomeResponse, error)
 }
 
-func NewDashboardRepository(repo *gorm.DB) DashboardRepository {
-	return &dashboardRepository{
+func NewHomeRepository(repo *gorm.DB) HomeRepository {
+	return &homeRepository{
 		db: repo,
 	}
 }
 
-func (r *dashboardRepository) GetTotalBalance(userID string) float64 {
+func (r *homeRepository) GetTotalBalance(userID string) float64 {
 	var total float64
 	if err := r.db.Model(&models.AccountBalance{}).
 		Select("SUM(amount)").
@@ -33,8 +33,8 @@ func (r *dashboardRepository) GetTotalBalance(userID string) float64 {
 	return total
 }
 
-func (r *dashboardRepository) GetDashboardData(userID string) (entities.DashboardResponse, error) {
-	var response entities.DashboardResponse
+func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, error) {
+	var response entities.HomeResponse
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// User + Greeting
@@ -143,7 +143,7 @@ func (r *dashboardRepository) GetDashboardData(userID string) (entities.Dashboar
 	})
 
 	if err != nil {
-		return entities.DashboardResponse{}, err
+		return entities.HomeResponse{}, err
 	}
 	return response, nil
 }

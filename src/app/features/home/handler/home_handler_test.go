@@ -16,14 +16,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// Mock DashboardService
-type MockDashboardService struct {
+
+// Mock HomeService
+type MockHomeService struct {
 	mock.Mock
 }
 
-func (m *MockDashboardService) GetDashboardData(userID string) (entities.DashboardResponse, error) {
+func (m *MockHomeService) GetHomeData(userID string) (entities.HomeResponse, error) {
 	args := m.Called(userID)
-	return args.Get(0).(entities.DashboardResponse), args.Error(1)
+	return args.Get(0).(entities.HomeResponse), args.Error(1)
 }
 
 func setupTestApp() *fiber.App {
@@ -36,19 +37,19 @@ func setupTestApp() *fiber.App {
 	return app
 }
 
-func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
+func TestHomeHandler_GetHomeData_BasicTests(t *testing.T) {
 	tests := []struct {
 		name           string
 		userID         string
-		mockSetup      func(*MockDashboardService)
+		mockSetup      func(*MockHomeService)
 		expectedStatus int
 		expectSuccess  bool
 	}{
 		{
-			name:   "successful get dashboard data",
+			name:   "successful get home data",
 			userID: "user123",
-			mockSetup: func(mockService *MockDashboardService) {
-				dashboardData := entities.DashboardResponse{
+			mockSetup: func(mockService *MockHomeService) {
+				homeData := entities.HomeResponse{
 					User: entities.User{
 						UserID:   "user123",
 						Name:     "testuser",
@@ -85,7 +86,7 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 					},
 					TotalBalance: 5000.0,
 				}
-				mockService.On("GetDashboardDataWithTrx", "user123").Return(dashboardData, nil)
+				mockService.On("GetHomeData", "user123").Return(homeData, nil)
 			},
 			expectedStatus: fiber.StatusOK,
 			expectSuccess:  true,
@@ -93,8 +94,8 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 		{
 			name:   "service returns error",
 			userID: "user123",
-			mockSetup: func(mockService *MockDashboardService) {
-				mockService.On("GetDashboardDataWithTrx", "user123").Return(entities.DashboardResponse{}, errors.New("service error"))
+			mockSetup: func(mockService *MockHomeService) {
+				mockService.On("GetHomeData", "user123").Return(entities.HomeResponse{}, errors.New("service error"))
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 			expectSuccess:  false,
@@ -102,8 +103,8 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 		{
 			name:   "user not found error",
 			userID: "nonexistent",
-			mockSetup: func(mockService *MockDashboardService) {
-				mockService.On("GetDashboardDataWithTrx", "nonexistent").Return(entities.DashboardResponse{}, &response.ErrorResponse{
+			mockSetup: func(mockService *MockHomeService) {
+				mockService.On("GetHomeData", "nonexistent").Return(entities.HomeResponse{}, &response.ErrorResponse{
 					HttpStatusCode: fiber.StatusNotFound,
 					Code:           response.ErrCodeNotFound,
 					Message:        "User not found",
@@ -115,8 +116,8 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 		{
 			name:   "internal server error",
 			userID: "user123",
-			mockSetup: func(mockService *MockDashboardService) {
-				mockService.On("GetDashboardDataWithTrx", "user123").Return(entities.DashboardResponse{}, &response.ErrorResponse{
+			mockSetup: func(mockService *MockHomeService) {
+				mockService.On("GetHomeData", "user123").Return(entities.HomeResponse{}, &response.ErrorResponse{
 					HttpStatusCode: fiber.StatusInternalServerError,
 					Code:           response.ErrCodeInternalServer,
 					Message:        "Internal server error",
@@ -131,26 +132,26 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			app := setupTestApp()
-			mockService := new(MockDashboardService)
+			mockService := new(MockHomeService)
 
 			// Create handler
-			handler := &dashboardHandler{service: mockService}
+			handler := &homeHandler{service: mockService}
 
 			// Mock auth middleware by setting user in context
-			app.Get("/dashboard/accounts", func(c *fiber.Ctx) error {
+			app.Get("/home", func(c *fiber.Ctx) error {
 				// Mock the auth middleware behavior
 				claims := &entities.Claims{
 					UserID: tt.userID,
 				}
 				c.Locals("user", claims)
-				return handler.GetDashboardData(c)
+				return handler.GetHomeData(c)
 			})
 
 			// Setup mock expectations
 			tt.mockSetup(mockService)
 
 			// Create request
-			req := httptest.NewRequest(http.MethodGet, "/dashboard/accounts", nil)
+			req := httptest.NewRequest(http.MethodGet, "/home", nil)
 
 			// Act
 			resp, err := app.Test(req)
@@ -165,25 +166,25 @@ func TestDashboardHandler_GetDashboardData_BasicTests(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_GetDashboardData_Integration(t *testing.T) {
+func TestHomeHandler_GetHomeData_Integration(t *testing.T) {
 	// This test focuses on the happy path only
 	app := setupTestApp()
-	mockService := new(MockDashboardService)
+	mockService := new(MockHomeService)
 
 	// Create handler
-	handler := &dashboardHandler{service: mockService}
+	handler := &homeHandler{service: mockService}
 
 	// Setup route with mock auth middleware
-	app.Get("/dashboard/accounts", func(c *fiber.Ctx) error {
+	app.Get("/home", func(c *fiber.Ctx) error {
 		claims := &entities.Claims{
 			UserID: "user123",
 		}
 		c.Locals("user", claims)
-		return handler.GetDashboardData(c)
+		return handler.GetHomeData(c)
 	})
 
 	// Setup mock expectations for successful case
-	dashboardData := entities.DashboardResponse{
+	homeData := entities.HomeResponse{
 		User: entities.User{
 			UserID:   "user123",
 			Name:     "testuser",
@@ -220,10 +221,10 @@ func TestDashboardHandler_GetDashboardData_Integration(t *testing.T) {
 		},
 		TotalBalance: 5000.0,
 	}
-	mockService.On("GetDashboardDataWithTrx", "user123").Return(dashboardData, nil)
+	mockService.On("GetHomeData", "user123").Return(homeData, nil)
 
 	// Create request
-	req := httptest.NewRequest(http.MethodGet, "/dashboard/accounts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/home", nil)
 
 	// Act
 	resp, err := app.Test(req)
@@ -239,7 +240,7 @@ func TestDashboardHandler_GetDashboardData_Integration(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestDashboardHandler_GetDashboardData_ErrorHandling(t *testing.T) {
+func TestHomeHandler_GetHomeData_ErrorHandling(t *testing.T) {
 	// Test various error scenarios without complex JSON parsing
 	tests := []struct {
 		name        string
@@ -265,19 +266,19 @@ func TestDashboardHandler_GetDashboardData_ErrorHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := setupTestApp()
-			mockService := new(MockDashboardService)
+			mockService := new(MockHomeService)
 
-			handler := &dashboardHandler{service: mockService}
+			handler := &homeHandler{service: mockService}
 
-			app.Get("/dashboard/accounts", func(c *fiber.Ctx) error {
+			app.Get("/home", func(c *fiber.Ctx) error {
 				claims := &entities.Claims{UserID: "user123"}
 				c.Locals("user", claims)
-				return handler.GetDashboardData(c)
+				return handler.GetHomeData(c)
 			})
 
-			mockService.On("GetDashboardDataWithTrx", "user123").Return(entities.DashboardResponse{}, tt.serviceErr)
+			mockService.On("GetHomeData", "user123").Return(entities.HomeResponse{}, tt.serviceErr)
 
-			req := httptest.NewRequest(http.MethodGet, "/dashboard/accounts", nil)
+			req := httptest.NewRequest(http.MethodGet, "/home", nil)
 			resp, err := app.Test(req)
 			assert.NoError(t, err)
 

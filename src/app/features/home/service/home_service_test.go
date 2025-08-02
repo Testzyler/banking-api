@@ -10,35 +10,35 @@ import (
 	"gorm.io/gorm"
 )
 
-// Mock DashboardRepository
-type MockDashboardRepository struct {
+// Mock HomeRepository
+type MockHomeRepository struct {
 	mock.Mock
 }
 
-// GetTotalBalance implements repository.DashboardRepository.
-func (m *MockDashboardRepository) GetTotalBalance(userID string) float64 {
+// GetTotalBalance implements repository.HomeRepository.
+func (m *MockHomeRepository) GetTotalBalance(userID string) float64 {
 	panic("unimplemented")
 }
 
-func (m *MockDashboardRepository) GetDashboardData(userID string) (entities.DashboardResponse, error) {
+func (m *MockHomeRepository) GetHomeData(userID string) (entities.HomeResponse, error) {
 	args := m.Called(userID)
-	return args.Get(0).(entities.DashboardResponse), args.Error(1)
+	return args.Get(0).(entities.HomeResponse), args.Error(1)
 }
 
-func TestDashboardService_GetDashboardData(t *testing.T) {
+func TestHomeService_GetHomeData(t *testing.T) {
 	tests := []struct {
 		name          string
 		userID        string
-		mockSetup     func(*MockDashboardRepository)
+		mockSetup     func(*MockHomeRepository)
 		expectError   bool
 		expectData    bool
 		errorContains string
 	}{
 		{
-			name:   "successful get dashboard data with transaction",
+			name:   "successful get home data",
 			userID: "user123",
-			mockSetup: func(mockRepo *MockDashboardRepository) {
-				dashboardData := entities.DashboardResponse{
+			mockSetup: func(mockRepo *MockHomeRepository) {
+				homeData := entities.HomeResponse{
 					User: entities.User{
 						UserID:   "user123",
 						Name:     "testuser",
@@ -71,7 +71,7 @@ func TestDashboardService_GetDashboardData(t *testing.T) {
 					},
 					TotalBalance: 5000.0,
 				}
-				mockRepo.On("GetDashboardDataWithTrx", "user123").Return(dashboardData, nil)
+				mockRepo.On("GetHomeData", "user123").Return(homeData, nil)
 			},
 			expectError: false,
 			expectData:  true,
@@ -79,8 +79,8 @@ func TestDashboardService_GetDashboardData(t *testing.T) {
 		{
 			name:   "database transaction error",
 			userID: "user123",
-			mockSetup: func(mockRepo *MockDashboardRepository) {
-				mockRepo.On("GetDashboardDataWithTrx", "user123").Return(entities.DashboardResponse{}, errors.New("transaction failed"))
+			mockSetup: func(mockRepo *MockHomeRepository) {
+				mockRepo.On("GetHomeData", "user123").Return(entities.HomeResponse{}, errors.New("transaction failed"))
 			},
 			expectError:   true,
 			expectData:    false,
@@ -89,8 +89,8 @@ func TestDashboardService_GetDashboardData(t *testing.T) {
 		{
 			name:   "user not found in transaction",
 			userID: "nonexistent",
-			mockSetup: func(mockRepo *MockDashboardRepository) {
-				mockRepo.On("GetDashboardDataWithTrx", "nonexistent").Return(entities.DashboardResponse{}, gorm.ErrRecordNotFound)
+			mockSetup: func(mockRepo *MockHomeRepository) {
+				mockRepo.On("GetHomeData", "nonexistent").Return(entities.HomeResponse{}, gorm.ErrRecordNotFound)
 			},
 			expectError:   true,
 			expectData:    false,
@@ -100,14 +100,14 @@ func TestDashboardService_GetDashboardData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockDashboardRepository)
-			service := NewDashboardService(mockRepo)
+			mockRepo := new(MockHomeRepository)
+			service := NewHomeService(mockRepo)
 
 			// Setup mock expectations
 			tt.mockSetup(mockRepo)
 
 			// Act
-			data, err := service.GetDashboardData(tt.userID)
+			data, err := service.GetHomeData(tt.userID)
 
 			// Assert
 			if tt.expectError {

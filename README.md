@@ -9,13 +9,11 @@ A high-performance banking API service built with Go, featuring secure authentic
 - Refresh token mechanism
 - Brute-force protection with exponential backoff
 
-**Dashboard Account**
+**Home Screen**
 - Multi-account support
-- Real-time balance tracking
-- Account flags and customization
+- Balance tracking
+- Accounts information
 - Debit card information
-- Card status 
-- Customizable card design
 
 ---
 
