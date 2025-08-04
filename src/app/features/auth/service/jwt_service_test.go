@@ -1,14 +1,111 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/Testzyler/banking-api/app/entities"
+	"github.com/Testzyler/banking-api/app/models"
 	"github.com/Testzyler/banking-api/config"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+// Mock AuthRepository for JWT service tests
+type MockAuthRepositoryJWT struct {
+	mock.Mock
+}
+
+func (m *MockAuthRepositoryJWT) GetUserWithPin(username string) (*models.User, error) {
+	args := m.Called(username)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) UpdateUserPinFailedAttempts(userID string, failedAttempts int) error {
+	args := m.Called(userID, failedAttempts)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) UpdateUserPinLockedUntil(userID string, lockedUntil *time.Time) error {
+	args := m.Called(userID, lockedUntil)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) UpdateUserPinLastAttemptAt(userID string, lastAttemptAt *time.Time) error {
+	args := m.Called(userID, lastAttemptAt)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) GetPinAttemptData(ctx context.Context, userID string) (*entities.PinAttemptData, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.PinAttemptData), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) IncrementFailedAttempts(ctx context.Context, userID string) (*entities.PinAttemptData, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.PinAttemptData), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) SetPinLock(ctx context.Context, userID string, lockedUntil time.Time, failedAttempts int, lastAttemptAt *time.Time) error {
+	args := m.Called(ctx, userID, lockedUntil, failedAttempts, lastAttemptAt)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) ResetPinAttempts(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]entities.TokenResponse), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) StoreToken(ctx context.Context, userID string, tokenResponse *entities.TokenResponse) error {
+	args := m.Called(ctx, userID, tokenResponse)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) BanAllUserTokens(ctx context.Context, userID, reason string) error {
+	args := m.Called(ctx, userID, reason)
+	return args.Error(0)
+}
+
+func (m *MockAuthRepositoryJWT) IsTokenBanned(ctx context.Context, tokenID string) (bool, error) {
+	args := m.Called(ctx, tokenID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) ValidateTokenVersion(ctx context.Context, tokenVersion int64) (*entities.TokenValidationResult, error) {
+	args := m.Called(ctx, tokenVersion)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*entities.TokenValidationResult), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) CleanupExpiredBans(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func createMockAuthRepo() *MockAuthRepositoryJWT {
+	return new(MockAuthRepositoryJWT)
+}
 
 func createTestConfig() *config.Config {
 	return &config.Config{
@@ -59,7 +156,8 @@ func TestJwtService_GenerateTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := createTestConfig()
-			service := NewJwtService(config)
+			mockRepo := createMockAuthRepo()
+			service := NewJwtService(config, mockRepo)
 
 			tokenResponse, err := service.GenerateTokens(tt.userID, tt.username)
 
@@ -82,7 +180,8 @@ func TestJwtService_GenerateTokens(t *testing.T) {
 
 func TestJwtService_ValidateAccessToken(t *testing.T) {
 	config := createTestConfig()
-	service := NewJwtService(config)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo)
 
 	// Generate a valid token first
 	tokenResponse, err := service.GenerateTokens("user123", "testuser")
@@ -146,7 +245,8 @@ func TestJwtService_ValidateAccessToken(t *testing.T) {
 
 func TestJwtService_ValidateRefreshToken(t *testing.T) {
 	config := createTestConfig()
-	service := NewJwtService(config)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo)
 
 	// Generate a valid token first
 	tokenResponse, err := service.GenerateTokens("user123", "testuser")
@@ -208,7 +308,8 @@ func TestJwtService_ValidateRefreshToken(t *testing.T) {
 
 func TestJwtService_RefreshAccessToken(t *testing.T) {
 	config := createTestConfig()
-	service := NewJwtService(config)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo)
 
 	// Generate a valid refresh token first
 	originalTokens, err := service.GenerateTokens("user123", "testuser")
@@ -262,8 +363,6 @@ func TestJwtService_RefreshAccessToken(t *testing.T) {
 					assert.Equal(t, tt.refreshTokenString, newTokenResponse.RefreshToken) // Same refresh token
 					assert.True(t, newTokenResponse.Expiry.After(time.Now()))
 					assert.Equal(t, "user123", newTokenResponse.UserID)
-					assert.Equal(t, "user123", newTokenResponse.User.UserID)
-					assert.Equal(t, "testuser", newTokenResponse.User.Name)
 
 					// New access token should be different from original
 					assert.NotEqual(t, originalTokens.Token, newTokenResponse.Token)
@@ -293,7 +392,8 @@ func TestJwtService_TokenExpiration(t *testing.T) {
 		},
 	}
 
-	service := NewJwtService(shortConfig)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(shortConfig, mockRepo)
 
 	// Generate tokens
 	tokenResponse, err := service.GenerateTokens("user123", "testuser")
@@ -317,17 +417,26 @@ func TestJwtService_TokenExpiration(t *testing.T) {
 
 func TestJwtService_InvalidTokenType(t *testing.T) {
 	config := createTestConfig()
-	service := NewJwtService(config).(*jwtService)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo).(*jwtService)
 
 	// Test generateToken with invalid type
-	_, _, err := service.generateToken("user123", "testuser", "invalid-type")
+	param := entities.GenerateTokenParams{
+		UserID:       "user123",
+		Username:     "testuser",
+		TokenVersion: time.Now().Unix(),
+		TokenID:      "test-token-id",
+		TokenType:    "invalid-type",
+	}
+	_, _, err := service.generateToken(param)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid token type")
 }
 
 func TestJwtService_WrongSigningMethod(t *testing.T) {
 	config := createTestConfig()
-	service := NewJwtService(config)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo)
 
 	// Create a token with wrong signing method (RS256 instead of HS256)
 	claims := &entities.Claims{
@@ -360,7 +469,8 @@ func TestJwtService_WrongSigningMethod(t *testing.T) {
 func TestJwtService_Integration(t *testing.T) {
 	// Full integration test: generate -> validate -> refresh -> validate new token
 	config := createTestConfig()
-	service := NewJwtService(config)
+	mockRepo := createMockAuthRepo()
+	service := NewJwtService(config, mockRepo)
 
 	// Step 1: Generate initial tokens
 	originalTokens, err := service.GenerateTokens("user123", "testuser")

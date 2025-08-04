@@ -1,6 +1,8 @@
 package entities
 
 import (
+	"time"
+
 	"github.com/Testzyler/banking-api/app/validators"
 )
 
@@ -13,7 +15,15 @@ func (p *GetUserByIdParams) Validate() error {
 }
 
 type User struct {
-	UserID   string `json:"userID"`
-	Name     string `json:"name"`
-	Greeting string `json:"greeting,omitempty"`
+	UserID   string  `json:"userID"`
+	Name     string  `json:"name"`
+	Greeting string  `json:"greeting,omitempty"`
+	UserPin  UserPin `json:"user_pin"`
+}
+
+type UserPin struct {
+	HashedPin         string    `json:"hashed_pin"`
+	FailedPinAttempts int       `json:"failed_pin_attempts"`
+	PinLockedUntil    time.Time `json:"pin_locked_until"`
+	LastPinAttemptAt  time.Time `json:"last_pin_attempt_at"`
 }

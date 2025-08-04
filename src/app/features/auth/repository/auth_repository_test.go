@@ -5,11 +5,17 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/Testzyler/banking-api/app/models"
+	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
+
+// func createTestRedisDB(mockClient redis.Cmdable) *database.RedisDatabase {
+// 	return &database.RedisDatabase{
+// 		Client: mockClient,
+// 	}
+// }
 
 func TestAuthRepository_GetUserWithPin(t *testing.T) {
 	tests := []struct {
@@ -17,7 +23,7 @@ func TestAuthRepository_GetUserWithPin(t *testing.T) {
 		username      string
 		mockSetup     func(sqlmock.Sqlmock)
 		expectError   bool
-		expectUser    *models.User
+		expectUser    *entities.User
 		errorContains string
 	}{
 		{
@@ -39,10 +45,9 @@ func TestAuthRepository_GetUserWithPin(t *testing.T) {
 					WillReturnRows(pinRows)
 			},
 			expectError: false,
-			expectUser: &models.User{
-				UserID:   "user123",
-				Name:     "testuser",
-				Password: "hashedpassword",
+			expectUser: &entities.User{
+				UserID: "user123",
+				Name:   "testuser",
 			},
 		},
 		{
@@ -72,7 +77,7 @@ func TestAuthRepository_GetUserWithPin(t *testing.T) {
 			}), &gorm.Config{})
 			assert.NoError(t, err)
 
-			repo := NewAuthRepository(gormDB)
+			repo := NewAuthRepository(gormDB, nil)
 
 			// Setup mock expectations
 			tt.mockSetup(mock)
@@ -150,7 +155,7 @@ func TestAuthRepository_UpdateUserPinFailedAttempts(t *testing.T) {
 			}), &gorm.Config{})
 			assert.NoError(t, err)
 
-			repo := NewAuthRepository(gormDB)
+			repo := NewAuthRepository(gormDB, nil)
 
 			// Setup mock expectations
 			tt.mockSetup(mock)
@@ -241,7 +246,7 @@ func TestAuthRepository_UpdateUserPinLockedUntil(t *testing.T) {
 			}), &gorm.Config{})
 			assert.NoError(t, err)
 
-			repo := NewAuthRepository(gormDB)
+			repo := NewAuthRepository(gormDB, nil)
 
 			// Setup mock expectations
 			tt.mockSetup(mock)

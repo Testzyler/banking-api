@@ -58,6 +58,7 @@ func (s *authService) VerifyPin(ctx context.Context, params entities.PinVerifyPa
 			UserID:         user.UserID,
 			FailedAttempts: user.UserPin.FailedPinAttempts,
 			PinLockedUntil: user.UserPin.PinLockedUntil,
+			LastAttemptAt:  user.UserPin.LastPinAttemptAt,
 		}
 	}
 

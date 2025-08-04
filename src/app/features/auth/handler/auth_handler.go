@@ -20,8 +20,8 @@ func NewAuthHandler(router fiber.Router, service service.AuthService) {
 	auth := router.Group("/auth")
 	auth.Post("/verify-pin", handler.VerifyPin)
 	auth.Post("/refresh", handler.RefreshToken)
-	auth.Post("/tokens", handler.BanAllUserTokens)
 	auth.Get("/tokens", handler.ListAllTokens)
+	auth.Post("/ban-tokens", handler.BanAllUserTokens)
 }
 
 func (h *authHandler) ListAllTokens(c *fiber.Ctx) error {

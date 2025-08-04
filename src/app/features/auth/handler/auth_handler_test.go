@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -24,7 +25,7 @@ type MockAuthService struct {
 	mock.Mock
 }
 
-func (m *MockAuthService) VerifyPin(params entities.PinVerifyParams) (*entities.TokenResponse, error) {
+func (m *MockAuthService) VerifyPin(ctx context.Context, params entities.PinVerifyParams) (*entities.TokenResponse, error) {
 	args := m.Called(params)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -38,6 +39,19 @@ func (m *MockAuthService) RefreshToken(refreshToken string) (*entities.TokenResp
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*entities.TokenResponse), args.Error(1)
+}
+
+func (m *MockAuthService) ListTokens(ctx context.Context) ([]entities.TokenResponse, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]entities.TokenResponse), args.Error(1)
+}
+
+func (m *MockAuthService) BanToken(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
 }
 
 func setupTestApp() *fiber.App {
@@ -70,10 +84,6 @@ func TestAuthHandler_VerifyPin_BasicTests(t *testing.T) {
 					RefreshToken: "refresh_token",
 					Expiry:       time.Now().Add(time.Hour),
 					UserID:       "user123",
-					User: entities.User{
-						UserID: "user123",
-						Name:   "testuser",
-					},
 				}
 				mockService.On("VerifyPin", mock.AnythingOfType("entities.PinVerifyParams")).Return(tokenResponse, nil)
 			},
@@ -154,10 +164,6 @@ func TestAuthHandler_RefreshToken_BasicTests(t *testing.T) {
 					RefreshToken: "valid_refresh_token",
 					Expiry:       time.Now().Add(time.Hour),
 					UserID:       "user123",
-					User: entities.User{
-						UserID: "user123",
-						Name:   "testuser",
-					},
 				}
 				mockService.On("RefreshToken", "valid_refresh_token").Return(tokenResponse, nil)
 			},
