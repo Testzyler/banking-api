@@ -1,18 +1,15 @@
-# 🏦 Banking API - Secure Digital Banking Platform
+# Banking API 
 
 ## Table of Contents
-
-- [**System Overview**](#-project-overview)
-- [**Key Features & Capabilities**](#-key-features--capabilities)
-- [**System Architecture**](#️-system-architecture)
-- [**Technology Stack**](#️-technology-stack)
-- [**Quick Start Guide**](#-quick-start-guide)
-- [**API Documentation**](#-api-documentation)
-- [**Security Implementation**](#-security-implementation)
-- [**Performance & Testing**](#-performance--testing)
-- [**Deployment & DevOps**](#-deployment--devops)
-- [**Project Structure**](#-project-structure)
-- [**Technical Highlights**](#-technical-highlights)
+- [**Getting Started**](#1-getting-started)
+- [**System Architecture**](#system-architecture)
+- [**Project Structure**](#project-structure)
+- [**Core Components**](#core-components)
+- [**Key Features**](#key-features)
+- [**Design Principles**](#2-design-principles)
+- [**Authentication Flow**](#3-authentication-flow)
+- [**API Reference**](#4-api-reference)
+- [**Test Summary**](#5-test-summary)
 
 ---
 
@@ -104,80 +101,3 @@ banking-api/
 - Structured logging with Zap
 - Request ID tracking
 - Error tracking
-
-## Technology Stack
-
-### Backend
-- **Language**: Go (Golang)
-- **Framework**: Fiber v2
-- **Database**: MySQL 8.0
-- **Cache**: Redis
-- **JWT**: golang-jwt/jwt/v5
-- **ORM**: GORM
-- **Logger**: Uber Zap
-- **Testing**: Testify
-
-### DevOps
-- **Containerization**: Docker
-- **Orchestration**: Docker Compose
-- **Load Testing**: K6
-- **Database Migration**: Custom migration system
-
-## API Endpoints
-
-### Authentication
-- `POST /api/v1/auth/verify-pin` - User authentication
-- `POST /api/v1/auth/refresh` - Token refresh
-- `POST /api/v1/auth/tokens` - Ban user tokens
-- `GET /api/v1/auth/tokens` - List user tokens
-
-### Home
-- `GET /api/v1/home/` - Get home screen data (Protected)
-
-## Configuration
-
-The system uses YAML configuration files:
-- `config.yaml` - Main configuration
-- `config.docker.yaml` - Docker environment configuration
-- `config.example.yaml` - Configuration template
-
-## Deployment
-
-### Docker Deployment
-```bash
-docker-compose up -d
-```
-
-### Manual Deployment
-```bash
-go build -o banking-api ./src
-./banking-api serve
-```
-
-## Testing
-
-### Unit Tests
-```bash
-go test ./...
-```
-
-### Load Testing
-```bash
-k6 run stress_test/stress-test.js
-```
-
-## Performance Characteristics
-
-- **Concurrency**: High concurrency support with Fiber
-- **Caching**: Redis for session and temporary data
-- **Database**: Optimized queries with proper indexing
-- **Load Balancing**: Support for horizontal scaling
-
-## Security Considerations
-
-1. **Authentication**: Strong JWT-based authentication
-2. **Authorization**: Role-based access control
-3. **Data Protection**: Encrypted sensitive data
-4. **Input Validation**: Comprehensive input validation
-5. **Rate Limiting**: Request rate limiting per client
-6. **Token Security**: Token versioning and banning system
