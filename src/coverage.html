@@ -55,25 +55,17 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/Testzyler/banking-api/app/features/auth/handler/auth_handler.go (77.3%)</option>
+				<option value="file0">github.com/Testzyler/banking-api/app/features/auth/handler/auth_handler.go (47.2%)</option>
 				
-				<option value="file1">github.com/Testzyler/banking-api/app/features/auth/repository/auth_repository.go (100.0%)</option>
+				<option value="file1">github.com/Testzyler/banking-api/app/features/auth/repository/auth_repository.go (32.9%)</option>
 				
-				<option value="file2">github.com/Testzyler/banking-api/app/features/auth/service/auth_service.go (95.6%)</option>
+				<option value="file2">github.com/Testzyler/banking-api/app/features/auth/service/auth_service.go (79.4%)</option>
 				
-				<option value="file3">github.com/Testzyler/banking-api/app/features/auth/service/jwt_service.go (85.4%)</option>
+				<option value="file3">github.com/Testzyler/banking-api/app/features/auth/service/jwt_service.go (65.3%)</option>
 				
-				<option value="file4">github.com/Testzyler/banking-api/app/features/dashboard/handler/dashboard_handler.go (62.5%)</option>
+				<option value="file4">github.com/Testzyler/banking-api/app/features/home/repository/home_repository.go (11.4%)</option>
 				
-				<option value="file5">github.com/Testzyler/banking-api/app/features/dashboard/repository/dashboard_repository.go (29.6%)</option>
-				
-				<option value="file6">github.com/Testzyler/banking-api/app/features/dashboard/service/dashboard_service.go (91.3%)</option>
-				
-				<option value="file7">github.com/Testzyler/banking-api/app/features/users/handler/user_handler.go (100.0%)</option>
-				
-				<option value="file8">github.com/Testzyler/banking-api/app/features/users/repository/user_repository.go (100.0%)</option>
-				
-				<option value="file9">github.com/Testzyler/banking-api/app/features/users/service/user_service.go (100.0%)</option>
+				<option value="file5">github.com/Testzyler/banking-api/app/features/home/service/home_service.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -109,7 +101,22 @@ func NewAuthHandler(router fiber.Router, service service.AuthService) <span clas
         auth := router.Group("/auth")
         auth.Post("/verify-pin", handler.VerifyPin)
         auth.Post("/refresh", handler.RefreshToken)
+        auth.Get("/tokens", handler.ListAllTokens)
+        auth.Post("/ban-tokens", handler.BanAllUserTokens)
 }</span>
+
+func (h *authHandler) ListAllTokens(c *fiber.Ctx) error <span class="cov0" title="0">{
+        tokens, err := h.service.ListTokens(c.Context())
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">return c.Status(fiber.StatusOK).JSON(&amp;response.SuccessResponse{
+                Code:    response.Success,
+                Message: "Tokens retrieved successfully",
+                Data:    tokens,
+        })</span>
+}
 
 func (h *authHandler) VerifyPin(c *fiber.Ctx) error <span class="cov8" title="1">{
         var params entities.PinVerifyParams
@@ -121,7 +128,7 @@ func (h *authHandler) VerifyPin(c *fiber.Ctx) error <span class="cov8" title="1"
                 return err
         }</span>
 
-        <span class="cov8" title="1">tokenResponse, err := h.service.VerifyPin(params)
+        <span class="cov8" title="1">tokenResponse, err := h.service.VerifyPin(c.Context(), params)
         if err != nil </span><span class="cov8" title="1">{
                 return err
         }</span>
@@ -162,42 +169,506 @@ func (h *authHandler) RefreshToken(c *fiber.Ctx) error <span class="cov8" title=
                 Data:    tokenResponse,
         })</span>
 }
+
+func (h *authHandler) BanAllUserTokens(c *fiber.Ctx) error <span class="cov0" title="0">{
+        var req entities.BanTokensRequest
+        if err := c.BodyParser(&amp;req); err != nil </span><span class="cov0" title="0">{
+                return c.Status(fiber.StatusBadRequest).JSON(response.ErrorResponse{
+                        Code:    response.ErrCodeBadRequest,
+                        Message: "User ID is required",
+                })
+        }</span>
+
+        <span class="cov0" title="0">if err := h.service.BanToken(c.Context(), req.UserID); err != nil </span><span class="cov0" title="0">{
+                if errorResponse, ok := err.(*response.ErrorResponse); ok </span><span class="cov0" title="0">{
+                        return c.Status(errorResponse.HttpStatusCode).JSON(errorResponse)
+                }</span>
+                <span class="cov0" title="0">return c.Status(fiber.StatusInternalServerError).JSON(response.ErrorResponse{
+                        Code:    response.ErrCodeInternalServer,
+                        Message: "Failed to ban token",
+                        Details: err.Error(),
+                })</span>
+        }
+
+        <span class="cov0" title="0">return c.Status(fiber.StatusOK).JSON(response.SuccessResponse{
+                Code:    response.Success,
+                Message: "Token banned successfully",
+        })</span>
+}
 </pre>
 		
 		<pre class="file" id="file1" style="display: none">package repository
 
 import (
+        "context"
+        "encoding/json"
+        "fmt"
         "time"
 
+        "github.com/Testzyler/banking-api/app/entities"
         "github.com/Testzyler/banking-api/app/models"
+        "github.com/Testzyler/banking-api/database"
+        "github.com/Testzyler/banking-api/logger"
+        "github.com/redis/go-redis/v9"
         "gorm.io/gorm"
 )
 
 type authRepository struct {
-        db *gorm.DB
+        db          *gorm.DB
+        redisClient redis.Cmdable
 }
 
 type AuthRepository interface {
+        // Redis
+        GetPinAttemptData(ctx context.Context, userID string) (*entities.PinAttemptData, error)
+        IncrementFailedAttempts(ctx context.Context, userID string) (*entities.PinAttemptData, error)
+        SetPinLock(ctx context.Context, userID string, lockedUntil time.Time, failedAttempts int, lastAttemptAt *time.Time) error
+        ResetPinAttempts(ctx context.Context, userID string) error
+        ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error)
+        StoreToken(ctx context.Context, userID string, tokenResponse *entities.TokenResponse) error
+        BanAllUserTokens(ctx context.Context, userID, reason string) error
+        IsTokenBanned(ctx context.Context, tokenID string) (bool, error)
+        ValidateTokenVersion(ctx context.Context, tokenVersion int64) (*entities.TokenValidationResult, error)
+        CleanupExpiredBans(ctx context.Context) error
+
+        // database
         GetUserWithPin(username string) (*models.User, error)
         UpdateUserPinFailedAttempts(userID string, failedAttempts int) error
         UpdateUserPinLockedUntil(userID string, lockedUntil *time.Time) error
+        UpdateUserPinLastAttemptAt(userID string, lastAttemptAt *time.Time) error
 }
 
-func NewAuthRepository(db *gorm.DB) AuthRepository <span class="cov8" title="1">{
-        return &amp;authRepository{db: db}
+func NewAuthRepository(db *gorm.DB, redisDB *database.RedisDatabase) AuthRepository <span class="cov8" title="1">{
+        var redisClient redis.Cmdable
+        if redisDB != nil </span><span class="cov8" title="1">{
+                redisClient = redisDB.GetClient()
+        }</span>
+
+        <span class="cov8" title="1">return &amp;authRepository{
+                db:          db,
+                redisClient: redisClient,
+        }</span>
+}
+
+// Redis helper methods
+func (r *authRepository) pinAttemptKey(userID string) string <span class="cov8" title="1">{
+        return fmt.Sprintf("pin_attempt:%s", userID)
 }</span>
 
-func (r *authRepository) GetUserWithPin(username string) (*models.User, error) <span class="cov8" title="1">{
-        var user models.User
+func (r *authRepository) bannedTokenKey(tokenID string) string <span class="cov8" title="1">{
+        return fmt.Sprintf("banned_token:%s", tokenID)
+}</span>
 
+func (r *authRepository) userTokensKey(userID string) string <span class="cov8" title="1">{
+        return fmt.Sprintf("user_tokens:%s", userID)
+}</span>
+
+func (r *authRepository) invalidateUserCache(username string) <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">cacheKey := fmt.Sprintf("user_with_pin:%s", username)
+        _ = r.redisClient.Del(context.Background(), cacheKey).Err()</span>
+}
+
+func (r *authRepository) invalidateUserCacheByID(userID string) <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">userTokensKey := r.userTokensKey(userID)
+        _ = r.redisClient.Del(context.Background(), userTokensKey).Err()</span>
+}
+
+func (r *authRepository) GetUserWithPin(username string) (*models.User, error) <span class="cov8" title="1">{
+        ctx := context.Background()
+
+        if r.redisClient != nil </span><span class="cov8" title="1">{
+                cacheKey := fmt.Sprintf("user_with_pin:%s", username)
+                result, err := r.redisClient.Get(ctx, cacheKey).Result()
+                if err == nil </span><span class="cov8" title="1">{
+                        var user models.User
+                        if err := json.Unmarshal([]byte(result), &amp;user); err == nil </span><span class="cov8" title="1">{
+                                return &amp;user, nil
+                        }</span>
+                }
+        }
+
+        // Fetch from database
+        <span class="cov8" title="1">var user models.User
         err := r.db.
                 Preload("UserPin").
                 Where("name = ?", username).
                 First(&amp;user).Error
 
-        return &amp;user, err
-}</span>
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
 
+        // Store in Redis cache for future requests (async)
+        <span class="cov8" title="1">if r.redisClient != nil </span><span class="cov8" title="1">{
+                go func() </span><span class="cov8" title="1">{
+                        cacheKey := fmt.Sprintf("user_with_pin:%s", username)
+                        userJSON, err := json.Marshal(user)
+                        if err == nil </span><span class="cov8" title="1">{
+                                // Cache for 5 minutes
+                                _ = r.redisClient.Set(ctx, cacheKey, string(userJSON), 5*time.Minute).Err()
+                        }</span>
+                }()
+        }
+
+        <span class="cov8" title="1">return &amp;user, nil</span>
+}
+
+func (r *authRepository) GetPinAttemptData(ctx context.Context, userID string) (*entities.PinAttemptData, error) <span class="cov8" title="1">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return &amp;entities.PinAttemptData{UserID: userID, FailedAttempts: 0}, nil
+        }</span>
+
+        <span class="cov8" title="1">key := r.pinAttemptKey(userID)
+        result, err := r.redisClient.Get(ctx, key).Result()
+        if err != nil </span><span class="cov8" title="1">{
+                if err == redis.Nil </span><span class="cov8" title="1">{
+                        return &amp;entities.PinAttemptData{UserID: userID, FailedAttempts: 0}, nil
+                }</span>
+                <span class="cov0" title="0">return nil, fmt.Errorf("failed to get pin attempt data from Redis: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">var data entities.PinAttemptData
+        if err := json.Unmarshal([]byte(result), &amp;data); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to unmarshal pin attempt data: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;data, nil</span>
+}
+
+func (r *authRepository) setPinAttemptData(ctx context.Context, userID string, data *entities.PinAttemptData, ttl time.Duration) error <span class="cov8" title="1">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">key := r.pinAttemptKey(userID)
+        jsonData, err := json.Marshal(data)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal pin attempt data: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return r.redisClient.Set(ctx, key, string(jsonData), ttl).Err()</span>
+}
+
+func (r *authRepository) IncrementFailedAttempts(ctx context.Context, userID string) (*entities.PinAttemptData, error) <span class="cov8" title="1">{
+        data, err := r.GetPinAttemptData(ctx, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Warn("Failed to get pin attempt data from Redis, falling back to database", "error", err)
+
+                // Fallback to database-only approach
+                user, errInner := r.GetUserWithPin(userID)
+                if errInner != nil </span><span class="cov0" title="0">{
+                        return nil, errInner
+                }</span>
+                <span class="cov0" title="0">data = &amp;entities.PinAttemptData{
+                        UserID:         userID,
+                        FailedAttempts: user.UserPin.FailedPinAttempts,
+                        PinLockedUntil: user.UserPin.PinLockedUntil,
+                        LastAttemptAt:  user.UserPin.LastPinAttemptAt,
+                }</span>
+        }
+
+        <span class="cov8" title="1">data.FailedAttempts++
+        now := time.Now()
+        data.LastAttemptAt = &amp;now
+
+        // Set Redis immediately
+        ttl := 24 * time.Hour
+        if err := r.setPinAttemptData(ctx, userID, data, ttl); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Async database sync
+        <span class="cov8" title="1">go func() </span><span class="cov8" title="1">{
+                if err := r.UpdateUserPinFailedAttempts(userID, data.FailedAttempts); err != nil </span><span class="cov8" title="1">{
+                        logger.Errorf("Failed to sync failed attempts to database for user %s: %v", userID, err)
+                }</span> else<span class="cov0" title="0"> if err := r.UpdateUserPinLastAttemptAt(userID, data.LastAttemptAt); err != nil </span><span class="cov0" title="0">{
+                        logger.Errorf("Failed to sync last attempt time to database for user %s: %v", userID, err)
+                }</span> else<span class="cov0" title="0"> {
+                        logger.Infof("Successfully synced failed attempts to database for user %s", userID)
+                }</span>
+        }()
+
+        <span class="cov8" title="1">return data, nil</span>
+}
+
+func (r *authRepository) SetPinLock(ctx context.Context, userID string, lockedUntil time.Time, failedAttempts int, lastAttemptAt *time.Time) error <span class="cov0" title="0">{
+        data, err := r.GetPinAttemptData(ctx, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">data.PinLockedUntil = &amp;lockedUntil
+        data.FailedAttempts = failedAttempts
+        data.LastAttemptAt = lastAttemptAt
+
+        // update database async
+        go func() </span><span class="cov0" title="0">{
+                data, err := r.GetPinAttemptData(ctx, userID)
+                if err != nil </span><span class="cov0" title="0">{
+                        logger.Warnf("Failed to get pin attempt data for user %s: %v", userID, err)
+                }</span>
+                <span class="cov0" title="0">if data.FailedAttempts &gt; 0 || data.PinLockedUntil != nil || data.LastAttemptAt != nil </span><span class="cov0" title="0">{
+                        if err := r.UpdateUserPinFailedAttempts(userID, 0); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset attempts in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> if err := r.UpdateUserPinLockedUntil(userID, nil); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset lock in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> if err := r.UpdateUserPinLastAttemptAt(userID, nil); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset last attempt time in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> {
+                                logger.Infof("Successfully reset PIN attempts in database for user %s", userID)
+                        }</span>
+                }
+        }()
+
+        // Set Redis immediately
+        <span class="cov0" title="0">ttl := time.Until(lockedUntil) + time.Hour
+        if err := r.setPinAttemptData(ctx, userID, data, ttl); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (r *authRepository) ResetPinAttempts(ctx context.Context, userID string) error <span class="cov0" title="0">{
+        data := &amp;entities.PinAttemptData{
+                UserID:         userID,
+                FailedAttempts: 0,
+                PinLockedUntil: nil,
+                LastAttemptAt:  nil,
+        }
+
+        // Async database sync
+        go func() </span><span class="cov0" title="0">{
+                data, err := r.GetPinAttemptData(ctx, userID)
+                if err != nil </span><span class="cov0" title="0">{
+                        logger.Warnf("Failed to get pin attempt data for user %s: %v", userID, err)
+                }</span>
+                <span class="cov0" title="0">if data.FailedAttempts &gt; 0 || data.PinLockedUntil != nil || data.LastAttemptAt != nil </span><span class="cov0" title="0">{
+                        if err := r.UpdateUserPinFailedAttempts(userID, 0); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset attempts in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> if err := r.UpdateUserPinLockedUntil(userID, nil); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset lock in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> if err := r.UpdateUserPinLastAttemptAt(userID, nil); err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to reset last attempt time in database for user %s: %v", userID, err)
+                        }</span> else<span class="cov0" title="0"> {
+                                logger.Infof("Successfully reset PIN attempts in database for user %s", userID)
+                        }</span>
+                }
+        }()
+
+        // Set Redis immediately
+        <span class="cov0" title="0">ttl := time.Hour
+        if err := r.setPinAttemptData(ctx, userID, data, ttl); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (r *authRepository) BanAllUserTokens(ctx context.Context, userID, reason string) error <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Redis client is not initialized")
+        }</span>
+
+        // Get all user tokens
+        <span class="cov0" title="0">userTokensKey := r.userTokensKey(userID)
+        tokens, err := r.redisClient.SMembers(ctx, userTokensKey).Result()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get user tokens: %w", err)
+        }</span>
+
+        // Ban each token individually
+        <span class="cov0" title="0">for _, tokenStr := range tokens </span><span class="cov0" title="0">{
+                var tokenResponse entities.TokenResponse
+                if err := json.Unmarshal([]byte(tokenStr), &amp;tokenResponse); err != nil </span><span class="cov0" title="0">{
+                        logger.Errorf("Failed to unmarshal token for banning: %v", err)
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">if err := r.banToken(ctx, userID, tokenResponse.TokenID, reason); err != nil </span><span class="cov0" title="0">{
+                        logger.Errorf("Failed to ban token %s: %v", tokenResponse.TokenID, err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">logger.Infof("All tokens banned for user %s: %s", userID, reason)
+        return nil</span>
+}
+
+func (r *authRepository) banToken(ctx context.Context, userID, tokenID, reason string) error <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Redis client is not initialized")
+        }</span>
+
+        <span class="cov0" title="0">bannedToken := entities.BannedToken{
+                TokenID:      tokenID,
+                UserID:       userID,
+                BannedAt:     time.Now(),
+                Reason:       reason,
+                TokenVersion: time.Now().Unix(), // Use current timestamp as version
+        }
+
+        bannedKey := r.bannedTokenKey(tokenID)
+        bannedData, err := json.Marshal(bannedToken)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal banned token data: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if err := r.redisClient.Set(ctx, bannedKey, string(bannedData), 24*time.Hour).Err(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to store banned token in Redis: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (r *authRepository) IsTokenBanned(ctx context.Context, tokenID string) (bool, error) <span class="cov8" title="1">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return true, nil // If Redis is not available, assume token is banned user input pin
+        }</span>
+
+        <span class="cov8" title="1">bannedKey := r.bannedTokenKey(tokenID)
+        result, err := r.redisClient.Get(ctx, bannedKey).Result()
+        if err != nil </span><span class="cov8" title="1">{
+                if err == redis.Nil </span><span class="cov8" title="1">{
+                        return false, nil
+                }</span>
+                <span class="cov8" title="1">return false, fmt.Errorf("failed to check banned token: %w", err)</span>
+        }
+
+        // Token exists in banned list
+        <span class="cov8" title="1">return result != "", nil</span>
+}
+
+func (r *authRepository) ValidateTokenVersion(ctx context.Context, tokenVersion int64) (*entities.TokenValidationResult, error) <span class="cov0" title="0">{
+        // Token version is based on issued timestamp
+        // Check if token is too old (older than 24 hours for example)
+        currentTime := time.Now().Unix()
+        maxAge := int64(24 * 60 * 60) // 24 hours in seconds
+
+        if tokenVersion &lt; (currentTime - maxAge) </span><span class="cov0" title="0">{
+                return &amp;entities.TokenValidationResult{
+                        Valid:        false,
+                        Reason:       "Token is too old",
+                        TokenVersion: currentTime,
+                }, nil
+        }</span>
+
+        <span class="cov0" title="0">return &amp;entities.TokenValidationResult{
+                Valid:        true,
+                TokenVersion: currentTime,
+        }, nil</span>
+}
+
+func (r *authRepository) CleanupExpiredBans(ctx context.Context) error <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">var cursor uint64
+        for </span><span class="cov0" title="0">{
+                keys, nextCursor, err := r.redisClient.Scan(ctx, cursor, "banned_token:*", 100).Result()
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to scan banned tokens: %w", err)
+                }</span>
+
+                <span class="cov0" title="0">for _, key := range keys </span><span class="cov0" title="0">{
+                        // Check if key exists (Redis TTL will auto-expire keys)
+                        exists, err := r.redisClient.Exists(ctx, key).Result()
+                        if err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to check key existence: %v", err)
+                                continue</span>
+                        }
+                        <span class="cov0" title="0">if exists == 0 </span><span class="cov0" title="0">{
+                                logger.Debugf("Banned token key %s has expired", key)
+                        }</span>
+                }
+
+                <span class="cov0" title="0">cursor = nextCursor
+                if cursor == 0 </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (r *authRepository) StoreToken(ctx context.Context, userID string, tokenResponse *entities.TokenResponse) error <span class="cov8" title="1">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Redis client is not initialized")
+        }</span>
+
+        <span class="cov8" title="1">key := r.userTokensKey(userID)
+        tokenJSON, err := json.Marshal(tokenResponse)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal token response: %w", err)
+        }</span>
+
+        // Store token in the user's token set
+        <span class="cov8" title="1">if err := r.redisClient.SAdd(ctx, key, string(tokenJSON)).Err(); err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("failed to store token in Redis: %w", err)
+        }</span>
+
+        // Set expiry for the key based on token expiry
+        <span class="cov8" title="1">if !tokenResponse.Expiry.IsZero() </span><span class="cov0" title="0">{
+                ttl := time.Until(tokenResponse.Expiry)
+                if ttl &gt; 0 </span><span class="cov0" title="0">{
+                        if err := r.redisClient.Expire(ctx, key, ttl).Err(); err != nil </span><span class="cov0" title="0">{
+                                logger.Warnf("Failed to set expiry for token key %s: %v", key, err)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+func (r *authRepository) ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error) <span class="cov0" title="0">{
+        if r.redisClient == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("Redis client is not initialized")
+        }</span>
+
+        <span class="cov0" title="0">var allTokenResponses []entities.TokenResponse
+        var cursor uint64
+
+        for </span><span class="cov0" title="0">{
+                keys, nextCursor, err := r.redisClient.Scan(ctx, cursor, "user_tokens:*", 100).Result()
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("failed to scan token keys from Redis: %w", err)
+                }</span>
+
+                // Process found keys
+                <span class="cov0" title="0">for _, key := range keys </span><span class="cov0" title="0">{
+                        userID := key[len("user_tokens:"):]
+                        tokens, err := r.redisClient.SMembers(ctx, key).Result()
+                        if err != nil </span><span class="cov0" title="0">{
+                                logger.Errorf("Failed to get tokens for user %s: %v", userID, err)
+                                continue</span>
+                        }
+
+                        <span class="cov0" title="0">for _, tokenStr := range tokens </span><span class="cov0" title="0">{
+                                var tokenResponse entities.TokenResponse
+                                if err := json.Unmarshal([]byte(tokenStr), &amp;tokenResponse); err != nil </span><span class="cov0" title="0">{
+                                        logger.Errorf("Failed to unmarshal token for user %s: %v", userID, err)
+                                        continue</span>
+                                }
+                                <span class="cov0" title="0">allTokenResponses = append(allTokenResponses, tokenResponse)</span>
+                        }
+                }
+
+                <span class="cov0" title="0">cursor = nextCursor
+                if cursor == 0 </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">return allTokenResponses, nil</span>
+}
+
+// Legacy database-only methods for fallback
 func (r *authRepository) UpdateUserPinFailedAttempts(userID string, failedAttempts int) error <span class="cov8" title="1">{
         return r.db.Model(&amp;models.UserPin{}).Where("user_id = ?", userID).Update("failed_pin_attempts", failedAttempts).Error
 }</span>
@@ -205,11 +676,16 @@ func (r *authRepository) UpdateUserPinFailedAttempts(userID string, failedAttemp
 func (r *authRepository) UpdateUserPinLockedUntil(userID string, lockedUntil *time.Time) error <span class="cov8" title="1">{
         return r.db.Model(&amp;models.UserPin{}).Where("user_id = ?", userID).Update("pin_locked_until", lockedUntil).Error
 }</span>
+
+func (r *authRepository) UpdateUserPinLastAttemptAt(userID string, lastAttemptAt *time.Time) error <span class="cov0" title="0">{
+        return r.db.Model(&amp;models.UserPin{}).Where("user_id = ?", userID).Update("last_pin_attempt_at", lastAttemptAt).Error
+}</span>
 </pre>
 		
 		<pre class="file" id="file2" style="display: none">package service
 
 import (
+        "context"
         "errors"
         "time"
 
@@ -217,6 +693,7 @@ import (
         "github.com/Testzyler/banking-api/app/features/auth/repository"
         "github.com/Testzyler/banking-api/app/models"
         "github.com/Testzyler/banking-api/config"
+        "github.com/Testzyler/banking-api/logger"
         "github.com/Testzyler/banking-api/server/exception"
         "golang.org/x/crypto/bcrypt"
         "gorm.io/gorm"
@@ -229,15 +706,25 @@ type authService struct {
 }
 
 type AuthService interface {
-        VerifyPin(params entities.PinVerifyParams) (*entities.TokenResponse, error)
+        VerifyPin(ctx context.Context, params entities.PinVerifyParams) (*entities.TokenResponse, error)
         RefreshToken(refreshToken string) (*entities.TokenResponse, error)
+        ListTokens(ctx context.Context) ([]entities.TokenResponse, error)
+        BanToken(ctx context.Context, userID string) error
 }
 
 func NewAuthService(repository repository.AuthRepository, jwtService JwtService, config *config.Config) AuthService <span class="cov8" title="1">{
         return &amp;authService{repository: repository, jwtService: jwtService, config: config}
 }</span>
 
-func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.TokenResponse, error) <span class="cov8" title="1">{
+func (s *authService) ListTokens(ctx context.Context) ([]entities.TokenResponse, error) <span class="cov0" title="0">{
+        tokens, err := s.repository.ListUserTokens(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return tokens, nil</span>
+}
+
+func (s *authService) VerifyPin(ctx context.Context, params entities.PinVerifyParams) (*entities.TokenResponse, error) <span class="cov8" title="1">{
         user, err := s.repository.GetUserWithPin(params.Username)
         if err != nil </span><span class="cov8" title="1">{
                 if errors.Is(err, gorm.ErrRecordNotFound) </span><span class="cov8" title="1">{
@@ -247,70 +734,69 @@ func (s *authService) VerifyPin(params entities.PinVerifyParams) (*entities.Toke
         }
 
         <span class="cov8" title="1">now := time.Now()
+        // Check Redis cache
+        cacheData, err := s.repository.GetPinAttemptData(ctx, user.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                logger.Errorf("Failed to get cache data for user %s: %v", user.UserID, err)
+                cacheData = &amp;entities.PinAttemptData{
+                        UserID:         user.UserID,
+                        FailedAttempts: user.UserPin.FailedPinAttempts,
+                        PinLockedUntil: user.UserPin.PinLockedUntil,
+                        LastAttemptAt:  user.UserPin.LastPinAttemptAt,
+                }
+        }</span>
 
-        if isPinLocked(user.UserPin, now) </span><span class="cov8" title="1">{
-                remainingTime := user.UserPin.PinLockedUntil.Sub(now).Round(time.Second)
+        <span class="cov8" title="1">if isLocked, remainingTime := isPinLocked(cacheData, now); isLocked </span><span class="cov8" title="1">{
                 return nil, exception.NewPinLockedError(remainingTime.String())
         }</span>
 
-        <span class="cov8" title="1">if isPinExpired(user.UserPin, now) </span><span class="cov0" title="0">{
-                return nil, exception.ErrPinExpired
-        }</span>
-
         <span class="cov8" title="1">if !isPinCorrect(user.UserPin.HashedPin, params.Pin) </span><span class="cov8" title="1">{
-                return nil, s.handleFailedAttempt(user, now)
+                return nil, s.handleFailedAttempt(ctx, user, now)
         }</span>
 
-        // Success: reset failed attempts and lock
-        <span class="cov8" title="1">_ = s.repository.UpdateUserPinFailedAttempts(user.UserID, 0)
-        _ = s.repository.UpdateUserPinLockedUntil(user.UserID, nil)
+        <span class="cov8" title="1">if err := s.repository.ResetPinAttempts(ctx, user.UserID); err != nil </span><span class="cov0" title="0">{
+                logger.Errorf("Failed to reset cache attempts for user %s: %v", user.UserID, err)
+        }</span>
 
-        // Generate JWT tokens
-        tokenResponse, err := s.jwtService.GenerateTokens(user.UserID, params.Username)
+        // Generate JWT tokens with token version (timestamp)
+        <span class="cov8" title="1">tokenResponse, err := s.jwtService.GenerateTokens(user.UserID, params.Username)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, exception.NewInternalError(err)
         }</span>
 
+        // Store token in Redis for tracking
         <span class="cov8" title="1">tokenResponse.UserID = user.UserID
-        tokenResponse.User = entities.User{
-                UserID: user.UserID,
-                Name:   user.Name,
-        }
+        if err := s.repository.StoreToken(ctx, user.UserID, tokenResponse); err != nil </span><span class="cov0" title="0">{
+                logger.Errorf("Failed to store token in Redis for user %s: %v", user.UserID, err)
+        }</span>
 
-        return tokenResponse, nil</span>
+        <span class="cov8" title="1">return tokenResponse, nil</span>
 }
 
-func isPinLocked(pin *models.UserPin, now time.Time) bool <span class="cov8" title="1">{
-        return pin.PinLockedUntil != nil &amp;&amp; now.Before(*pin.PinLockedUntil)
-}</span>
-
-func isPinExpired(pin *models.UserPin, now time.Time) bool <span class="cov8" title="1">{
-        return pin.LastPinAttemptAt != nil &amp;&amp; now.After(*pin.LastPinAttemptAt)
-}</span>
+func isPinLocked(cacheData *entities.PinAttemptData, now time.Time) (bool, time.Duration) <span class="cov8" title="1">{
+        if cacheData.PinLockedUntil != nil &amp;&amp; now.Before(*cacheData.PinLockedUntil) </span><span class="cov8" title="1">{
+                remainingTime := cacheData.PinLockedUntil.Sub(now).Round(time.Second)
+                return true, remainingTime
+        }</span>
+        <span class="cov8" title="1">return false, 0</span>
+}
 
 func isPinCorrect(hashedPin, inputPin string) bool <span class="cov8" title="1">{
         return bcrypt.CompareHashAndPassword([]byte(hashedPin), []byte(inputPin)) == nil
 }</span>
 
-func (s *authService) handleFailedAttempt(user *models.User, now time.Time) error <span class="cov8" title="1">{
-        newAttempts := user.UserPin.FailedPinAttempts + 1
-        if err := s.repository.UpdateUserPinFailedAttempts(user.UserID, newAttempts); err != nil </span><span class="cov8" title="1">{
-                return exception.NewInternalError(err)
+func (s *authService) handleFailedAttempt(ctx context.Context, user *models.User, now time.Time) error <span class="cov8" title="1">{
+        cacheData, err := s.repository.IncrementFailedAttempts(ctx, user.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
         }</span>
-
-        // Configurable
-        // const (
-        //         baseDuration   = 10 * time.Second
-        //         lockThreshold  = 3
-        //         maxLockSeconds = 300
-        // )
 
         <span class="cov8" title="1">baseDuration := s.config.Auth.Pin.BaseDuration
         lockThreshold := s.config.Auth.Pin.LockThreshold
         maxLockDuration := s.config.Auth.Pin.MaxLockDuration
 
-        if newAttempts &gt;= lockThreshold </span><span class="cov8" title="1">{
-                power := newAttempts - lockThreshold
+        if cacheData.FailedAttempts &gt;= lockThreshold </span><span class="cov8" title="1">{
+                power := cacheData.FailedAttempts - lockThreshold
                 lockDuration := baseDuration * time.Duration(1&lt;&lt;power) // 2^power
 
                 // Cap max lock duration
@@ -319,14 +805,16 @@ func (s *authService) handleFailedAttempt(user *models.User, now time.Time) erro
                 }</span>
 
                 <span class="cov8" title="1">lockedUntil := now.Add(lockDuration)
-                _ = s.repository.UpdateUserPinLockedUntil(user.UserID, &amp;lockedUntil)
 
-                // PIN is now locked
-                return exception.NewPinLockedError(lockDuration.String())</span>
+                // Set lock in Redis immediately, then async DB sync
+                if err := s.repository.SetPinLock(ctx, user.UserID, lockedUntil, cacheData.FailedAttempts, cacheData.LastAttemptAt); err != nil </span><span class="cov8" title="1">{
+                        logger.Errorf("Failed to set pin lock in cache for user %s: %v", user.UserID, err)
+                }</span>
+
+                <span class="cov8" title="1">return exception.NewPinLockedError(lockDuration.String())</span>
         }
 
-        // Return error with remaining attempts
-        <span class="cov8" title="1">remainingAttempts := lockThreshold - newAttempts
+        <span class="cov8" title="1">remainingAttempts := lockThreshold - cacheData.FailedAttempts
         return exception.NewInvalidPinError(remainingAttempts)</span>
 }
 
@@ -335,25 +823,48 @@ func (s *authService) RefreshToken(refreshToken string) (*entities.TokenResponse
         if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
+
+        // Store the new token in Redis for tracking
+        <span class="cov8" title="1">if tokenResponse.UserID != "" </span><span class="cov8" title="1">{
+                ctx := context.Background()
+                if err := s.repository.StoreToken(ctx, tokenResponse.UserID, tokenResponse); err != nil </span><span class="cov0" title="0">{
+                        logger.Errorf("Failed to store refreshed token in Redis for user %s: %v", tokenResponse.UserID, err)
+                }</span>
+        }
+
         <span class="cov8" title="1">return tokenResponse, nil</span>
+}
+
+func (s *authService) BanToken(ctx context.Context, userID string) error <span class="cov0" title="0">{
+        reason := "Manually banned by admin"
+        if err := s.repository.BanAllUserTokens(ctx, userID, reason); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">logger.Infof("User %s has been banned all tokens successfully", userID)
+        return nil</span>
 }
 </pre>
 		
 		<pre class="file" id="file3" style="display: none">package service
 
 import (
+        "context"
         "errors"
         "time"
 
         "github.com/Testzyler/banking-api/app/entities"
+        "github.com/Testzyler/banking-api/app/features/auth/repository"
         "github.com/Testzyler/banking-api/config"
+        "github.com/Testzyler/banking-api/logger"
         "github.com/Testzyler/banking-api/server/exception"
         "github.com/golang-jwt/jwt/v5"
         "github.com/google/uuid"
 )
 
 type jwtService struct {
-        config *config.Config
+        config   *config.Config
+        authRepo repository.AuthRepository
 }
 
 type JwtService interface {
@@ -361,19 +872,38 @@ type JwtService interface {
         ValidateAccessToken(tokenString string) (*entities.Claims, error)
         ValidateRefreshToken(tokenString string) (*entities.Claims, error)
         RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error)
+        ValidateTokenWithBanCheck(tokenString string) (*entities.TokenValidationResult, error)
 }
 
-func NewJwtService(config *config.Config) JwtService <span class="cov8" title="1">{
-        return &amp;jwtService{config: config}
+func NewJwtService(config *config.Config, authRepo repository.AuthRepository) JwtService <span class="cov8" title="1">{
+        return &amp;jwtService{config: config, authRepo: authRepo}
 }</span>
 
 func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenResponse, error) <span class="cov8" title="1">{
-        accessToken, accessExpiry, err := s.generateToken(userID, username, "access")
+        // Generate unique token ID and use current timestamp as token version
+        tokenID := uuid.New().String()
+        tokenVersion := time.Now().Unix()
+        accessTokenParam := entities.GenerateTokenParams{
+                UserID:       userID,
+                Username:     username,
+                TokenVersion: tokenVersion,
+                TokenID:      tokenID,
+                TokenType:    "access",
+        }
+        accessToken, accessExpiry, err := s.generateToken(accessTokenParam)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
 
-        <span class="cov8" title="1">refreshToken, _, err := s.generateToken(userID, username, "refresh")
+        <span class="cov8" title="1">refreshTokenID := uuid.New().String()
+        refreshTokenParam := entities.GenerateTokenParams{
+                UserID:       userID,
+                Username:     username,
+                TokenVersion: tokenVersion,
+                TokenID:      refreshTokenID,
+                TokenType:    "refresh",
+        }
+        refreshToken, _, err := s.generateToken(refreshTokenParam)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
@@ -382,14 +912,16 @@ func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenRes
                 Token:        accessToken,
                 Expiry:       accessExpiry,
                 RefreshToken: refreshToken,
+                TokenVersion: tokenVersion,
+                TokenID:      tokenID,
         }, nil</span>
 }
 
-func (s *jwtService) generateToken(userID, username, tokenType string) (string, time.Time, error) <span class="cov8" title="1">{
+func (s *jwtService) generateToken(param entities.GenerateTokenParams) (string, time.Time, error) <span class="cov8" title="1">{
         var secret string
         var expiry time.Duration
 
-        switch tokenType </span>{
+        switch param.TokenType </span>{
         case "access":<span class="cov8" title="1">
                 secret = s.config.Auth.Jwt.AccessTokenSecret
                 expiry = s.config.Auth.Jwt.AccessTokenExpiry</span>
@@ -404,12 +936,14 @@ func (s *jwtService) generateToken(userID, username, tokenType string) (string, 
         expiryTime := now.Add(expiry)
 
         claims := &amp;entities.Claims{
-                UserID:   userID,
-                Username: username,
-                Type:     tokenType,
+                UserID:       param.UserID,
+                Username:     param.Username,
+                Type:         param.TokenType,
+                TokenVersion: param.TokenVersion,
+                TokenID:      param.TokenID,
                 RegisteredClaims: jwt.RegisteredClaims{
-                        ID:        uuid.New().String(),
-                        Subject:   userID,
+                        ID:        param.TokenID,
+                        Subject:   param.UserID,
                         Audience:  []string{"banking-api"},
                         IssuedAt:  jwt.NewNumericDate(now),
                         ExpiresAt: jwt.NewNumericDate(expiryTime),
@@ -469,7 +1003,17 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
                 return nil, err
         }</span>
 
-        <span class="cov8" title="1">accessToken, accessExpiry, err := s.generateToken(claims.UserID, claims.Username, "access")
+        <span class="cov8" title="1">newTokenID := uuid.New().String()
+        newTokenVersion := time.Now().Unix()
+        // Generate new access token
+        accessTokenParam := entities.GenerateTokenParams{
+                UserID:       claims.UserID,
+                Username:     claims.Username,
+                TokenVersion: newTokenVersion,
+                TokenID:      newTokenID,
+                TokenType:    "access",
+        }
+        accessToken, accessExpiry, err := s.generateToken(accessTokenParam)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
@@ -479,60 +1023,76 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
                 Expiry:       accessExpiry,
                 RefreshToken: refreshTokenString,
                 UserID:       claims.UserID,
-                User: entities.User{
-                        UserID: claims.UserID,
-                        Name:   claims.Username,
-                },
+                TokenVersion: newTokenVersion,
+                TokenID:      newTokenID,
+        }, nil</span>
+}
+
+func (s *jwtService) ValidateTokenWithBanCheck(tokenString string) (*entities.TokenValidationResult, error) <span class="cov0" title="0">{
+        claims, err := s.ValidateAccessToken(tokenString)
+        if err != nil </span><span class="cov0" title="0">{
+                return &amp;entities.TokenValidationResult{
+                        Valid:        false,
+                        Reason:       "invalid token",
+                        TokenVersion: 0,
+                }, err
+        }</span>
+
+        <span class="cov0" title="0">if s.authRepo == nil </span><span class="cov0" title="0">{
+                return &amp;entities.TokenValidationResult{
+                        Valid:        false,
+                        Reason:       "Error: auth repository not initialized",
+                        TokenVersion: claims.TokenVersion,
+                }, nil
+        }</span>
+
+        <span class="cov0" title="0">ctx := context.Background()
+        isBanned, err := s.authRepo.IsTokenBanned(ctx, claims.TokenID)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errorf("Failed to check if token is banned: %v", err)
+                return &amp;entities.TokenValidationResult{
+                        Valid:        true,
+                        Reason:       "ban check failed",
+                        TokenVersion: claims.TokenVersion,
+                }, nil
+        }</span>
+
+        <span class="cov0" title="0">if isBanned </span><span class="cov0" title="0">{
+                return &amp;entities.TokenValidationResult{
+                        Valid:        false,
+                        Reason:       "token is banned",
+                        TokenVersion: claims.TokenVersion,
+                }, exception.NewTokenBannedError()
+        }</span>
+
+        <span class="cov0" title="0">validationResult, err := s.authRepo.ValidateTokenVersion(ctx, claims.TokenVersion)
+        if err != nil </span><span class="cov0" title="0">{
+                logger.Errorf("Failed to validate token version: %v", err)
+                return &amp;entities.TokenValidationResult{
+                        Valid:        true,
+                        Reason:       "version check failed",
+                        TokenVersion: claims.TokenVersion,
+                }, nil
+        }</span>
+
+        <span class="cov0" title="0">if !validationResult.Valid </span><span class="cov0" title="0">{
+                return &amp;entities.TokenValidationResult{
+                        Valid:        false,
+                        Reason:       validationResult.Reason,
+                        TokenVersion: claims.TokenVersion,
+                }, exception.NewTokenOutdatedError(validationResult.Reason)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;entities.TokenValidationResult{
+                Valid:        true,
+                Reason:       "",
+                TokenVersion: claims.TokenVersion,
+                Claims:       *claims,
         }, nil</span>
 }
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package dashboard
-
-import (
-        "github.com/Testzyler/banking-api/app/entities"
-        "github.com/Testzyler/banking-api/app/features/dashboard/service"
-        "github.com/Testzyler/banking-api/server/middlewares"
-        "github.com/Testzyler/banking-api/server/response"
-        "github.com/gofiber/fiber/v2"
-)
-
-type dashboardHandler struct {
-        service service.DashboardService
-}
-
-func NewDashboardHandler(router fiber.Router, service service.DashboardService) <span class="cov0" title="0">{
-        handler := &amp;dashboardHandler{
-                service: service,
-        }
-
-        dashboard := router.Group("/dashboard")
-        dashboard.Get("/accounts", middlewares.AuthMiddleware(), handler.GetDashboardData)
-}</span>
-
-func (h *dashboardHandler) GetDashboardData(c *fiber.Ctx) error <span class="cov8" title="1">{
-        userID := c.Locals("user").(*entities.Claims).UserID
-
-        // data, err := h.service.GetDashboardData(entities.DashboardParams{UserID: userID})
-        // if err != nil {
-        //         return err
-        // }
-
-        // Optimized
-        data, err := h.service.GetDashboardDataWithTrx(userID)
-        if err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">return c.Status(fiber.StatusOK).JSON(&amp;response.SuccessResponse{
-                Code:    response.Success,
-                Message: "Dashboard data retrieved successfully",
-                Data:    data,
-        })</span>
-}
-</pre>
-		
-		<pre class="file" id="file5" style="display: none">package repository
+		<pre class="file" id="file4" style="display: none">package repository
 
 import (
         "github.com/Testzyler/banking-api/app/entities"
@@ -540,28 +1100,22 @@ import (
         "gorm.io/gorm"
 )
 
-type dashboardRepository struct {
+type homeRepository struct {
         db *gorm.DB
 }
 
-type DashboardRepository interface {
-        GetAccountsByUserID(userID string) ([]entities.Account, error)
-        GetTransactionsByUserID(userID string) ([]entities.Transaction, error)
-        GetBannersByUserID(userID string) ([]entities.Banner, error)
-        GetUserByID(userID string) (entities.User, error)
-        GetCardsByUserID(userID string) ([]entities.DebitCards, error)
+type HomeRepository interface {
         GetTotalBalance(userID string) float64
-
-        GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error)
+        GetHomeData(userID string) (entities.HomeResponse, error)
 }
 
-func NewDashboardRepository(repo *gorm.DB) DashboardRepository <span class="cov8" title="1">{
-        return &amp;dashboardRepository{
+func NewHomeRepository(repo *gorm.DB) HomeRepository <span class="cov8" title="1">{
+        return &amp;homeRepository{
                 db: repo,
         }
 }</span>
 
-func (r *dashboardRepository) GetTotalBalance(userID string) float64 <span class="cov8" title="1">{
+func (r *homeRepository) GetTotalBalance(userID string) float64 <span class="cov8" title="1">{
         var total float64
         if err := r.db.Model(&amp;models.AccountBalance{}).
                 Select("SUM(amount)").
@@ -573,139 +1127,8 @@ func (r *dashboardRepository) GetTotalBalance(userID string) float64 <span class
         <span class="cov8" title="1">return total</span>
 }
 
-func (r *dashboardRepository) GetAccountsByUserID(userID string) ([]entities.Account, error) <span class="cov0" title="0">{
-        var result []entities.Account
-        var accounts []models.Account
-        if err := r.db.
-                Preload("AccountDetails").
-                Preload("AccountBalance").
-                Preload("AccountFlags").
-                Find(&amp;accounts, "user_id = ?", userID).Error; err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">for _, account := range accounts </span><span class="cov0" title="0">{
-                result = append(result, convertAccountToEntity(account, account.AccountDetails, account.AccountBalance, account.AccountFlags))
-        }</span>
-
-        <span class="cov0" title="0">return result, nil</span>
-}
-
-func convertAccountToEntity(
-        account models.Account,
-        accountDetail models.AccountDetail,
-        accountBalance models.AccountBalance,
-        accountFlags []models.AccountFlag,
-) entities.Account <span class="cov0" title="0">{
-        var flags []entities.AccountFlags
-        for _, flag := range accountFlags </span><span class="cov0" title="0">{
-                flags = append(flags, entities.AccountFlags{
-                        FlagType:  flag.FlagType,
-                        FlagValue: flag.FlagValue,
-                        CreatedAt: flag.CreatedAt,
-                        UpdatedAt: flag.UpdatedAt,
-                })
-        }</span>
-
-        <span class="cov0" title="0">return entities.Account{
-                AccountID: account.AccountID,
-                Type:      account.Type,
-                Currency:  account.Currency,
-                Issuer:    account.Issuer,
-                Amount:    accountBalance.Amount,
-                AccountDetails: entities.AccountDetails{
-                        Color:         accountDetail.Color,
-                        IsMainAccount: accountDetail.IsMainAccount,
-                        Progress:      accountDetail.Progress,
-                },
-                AccountFlags: flags,
-        }</span>
-}
-
-func (r *dashboardRepository) GetUserByID(userID string) (entities.User, error) <span class="cov8" title="1">{
-        var user models.User
-
-        if err := r.db.Preload("UserGreeting").
-                First(&amp;user, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
-                return entities.User{}, err
-        }</span>
-
-        <span class="cov8" title="1">result := entities.User{
-                UserID:   user.UserID,
-                Name:     user.Name,
-                Greeting: user.UserGreeting.Greeting,
-        }
-
-        return result, nil</span>
-}
-
-func (r *dashboardRepository) GetCardsByUserID(userID string) ([]entities.DebitCards, error) <span class="cov0" title="0">{
-        var cards []models.DebitCard
-        if err := r.db.Preload("DebitCardDetail").
-                Preload("DebitCardDesign").
-                Preload("DebitCardStatus").
-                Where("user_id = ?", userID).
-                Find(&amp;cards).Error; err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">var result []entities.DebitCards
-        for _, c := range cards </span><span class="cov0" title="0">{
-                result = append(result, entities.DebitCards{
-                        CardID:   c.CardID,
-                        CardName: c.Name,
-                        DebitCardDesign: entities.DebitCardDesign{
-                                Color:       c.DebitCardDesign.Color,
-                                BorderColor: c.DebitCardDesign.BorderColor,
-                        },
-                        Status:     c.DebitCardStatus.Status,
-                        CardNumber: c.DebitCardDetail.Number,
-                        Issuer:     c.DebitCardDetail.Issuer,
-                })
-        }</span>
-        <span class="cov0" title="0">return result, nil</span>
-}
-
-func (r *dashboardRepository) GetBannersByUserID(userID string) ([]entities.Banner, error) <span class="cov8" title="1">{
-        var banners []models.Banner
-        if err := r.db.Find(&amp;banners, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
-                return nil, err
-        }</span>
-
-        <span class="cov8" title="1">var result []entities.Banner
-        for _, banner := range banners </span><span class="cov8" title="1">{
-                result = append(result, entities.Banner{
-                        BannerID:    banner.BannerID,
-                        UserID:      banner.UserID,
-                        Title:       banner.Title,
-                        Description: banner.Description,
-                        ImageURL:    banner.Image,
-                })
-        }</span>
-        <span class="cov8" title="1">return result, nil</span>
-}
-
-func (r *dashboardRepository) GetTransactionsByUserID(userID string) ([]entities.Transaction, error) <span class="cov8" title="1">{
-        var transactions []models.Transaction
-        if err := r.db.Find(&amp;transactions, "user_id = ?", userID).Error; err != nil </span><span class="cov8" title="1">{
-                return nil, err
-        }</span>
-
-        <span class="cov8" title="1">var result []entities.Transaction
-        for _, transaction := range transactions </span><span class="cov8" title="1">{
-                result = append(result, entities.Transaction{
-                        TransactionID: transaction.TransactionID,
-                        UserID:        transaction.UserID,
-                        Name:          transaction.Name,
-                        Image:         transaction.Image,
-                        IsBank:        transaction.IsBank,
-                })
-        }</span>
-        <span class="cov8" title="1">return result, nil</span>
-}
-
-func (r *dashboardRepository) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) <span class="cov0" title="0">{
-        var response entities.DashboardResponse
+func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, error) <span class="cov0" title="0">{
+        var response entities.HomeResponse
 
         err := r.db.Transaction(func(tx *gorm.DB) error </span><span class="cov0" title="0">{
                 // User + Greeting
@@ -814,310 +1237,40 @@ func (r *dashboardRepository) GetDashboardDataWithTrx(userID string) (entities.D
         })
 
         <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
-                return entities.DashboardResponse{}, err
+                return entities.HomeResponse{}, err
         }</span>
         <span class="cov0" title="0">return response, nil</span>
 }
 </pre>
 		
-		<pre class="file" id="file6" style="display: none">package service
+		<pre class="file" id="file5" style="display: none">package service
 
 import (
         "github.com/Testzyler/banking-api/app/entities"
-        "github.com/Testzyler/banking-api/app/features/dashboard/repository"
+        "github.com/Testzyler/banking-api/app/features/home/repository"
 )
 
-type dashboardService struct {
-        repo repository.DashboardRepository
+type homeService struct {
+        repo repository.HomeRepository
 }
 
-type DashboardService interface {
-        GetDashboardData(entities.DashboardParams) (entities.DashboardResponse, error)
-        GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error)
+type HomeService interface {
+        GetHomeData(userID string) (entities.HomeResponse, error)
 }
 
-func NewDashboardService(repo repository.DashboardRepository) *dashboardService <span class="cov8" title="1">{
-        return &amp;dashboardService{
+func NewHomeService(repo repository.HomeRepository) *homeService <span class="cov8" title="1">{
+        return &amp;homeService{
                 repo: repo,
         }
 }</span>
-func (s *dashboardService) GetDashboardData(params entities.DashboardParams) (entities.DashboardResponse, error) <span class="cov8" title="1">{
-        user, err := s.repo.GetUserByID(params.UserID)
+
+func (s *homeService) GetHomeData(userID string) (entities.HomeResponse, error) <span class="cov8" title="1">{
+        homeData, err := s.repo.GetHomeData(userID)
         if err != nil </span><span class="cov8" title="1">{
-                return entities.DashboardResponse{}, err
+                return entities.HomeResponse{}, err
         }</span>
 
-        <span class="cov8" title="1">cards, err := s.repo.GetCardsByUserID(params.UserID)
-        if err != nil </span><span class="cov8" title="1">{
-                return entities.DashboardResponse{}, err
-        }</span>
-
-        <span class="cov8" title="1">banners, err := s.repo.GetBannersByUserID(params.UserID)
-        if err != nil </span><span class="cov8" title="1">{
-                return entities.DashboardResponse{}, err
-        }</span>
-
-        <span class="cov8" title="1">transactions, err := s.repo.GetTransactionsByUserID(params.UserID)
-        if err != nil </span><span class="cov0" title="0">{
-                return entities.DashboardResponse{}, err
-        }</span>
-
-        <span class="cov8" title="1">accounts, err := s.repo.GetAccountsByUserID(params.UserID)
-        if err != nil </span><span class="cov0" title="0">{
-                return entities.DashboardResponse{}, err
-        }</span>
-
-        <span class="cov8" title="1">getTotalBalance := s.repo.GetTotalBalance(params.UserID)
-
-        data := entities.DashboardResponse{
-                User:         user,
-                DebitCards:   cards,
-                Banners:      banners,
-                Transactions: transactions,
-                Accounts:     accounts,
-                TotalBalance: getTotalBalance,
-        }
-        return data, nil</span>
-}
-
-func (s *dashboardService) GetDashboardDataWithTrx(userID string) (entities.DashboardResponse, error) <span class="cov8" title="1">{
-        dashboard, err := s.repo.GetDashboardDataWithTrx(userID)
-        if err != nil </span><span class="cov8" title="1">{
-                return entities.DashboardResponse{}, err
-        }</span>
-
-        <span class="cov8" title="1">return dashboard, nil</span>
-}
-</pre>
-		
-		<pre class="file" id="file7" style="display: none">package handler
-
-import (
-        "net/http"
-        "strconv"
-
-        "github.com/Testzyler/banking-api/app/entities"
-        "github.com/Testzyler/banking-api/app/features/users/service"
-        "github.com/Testzyler/banking-api/server/response"
-        "github.com/gofiber/fiber/v2"
-)
-
-type userHandler struct {
-        userService service.UserService
-}
-
-func NewUserHandler(router fiber.Router, userService service.UserService) <span class="cov8" title="1">{
-        handler := &amp;userHandler{
-                userService: userService,
-        }
-
-        userGroup := router.Group("/users")
-
-        userGroup.Get("/", handler.GetUsers)
-        userGroup.Get("/:id", handler.GetUser)
-}</span>
-
-func (h *userHandler) GetUsers(c *fiber.Ctx) error <span class="cov8" title="1">{
-        // Get request logger with request ID
-        // requestLogger := middlewares.GetRequestLogger(c)
-        // requestLogger.Infof("Getting users list with pagination")
-
-        var params entities.PaginationParams
-        params.Page, _ = strconv.Atoi(c.Query("page", "1"))
-        params.PerPage, _ = strconv.Atoi(c.Query("perPage", "10"))
-        params.Search = c.Query("search", "")
-
-        if err := params.Validate(); err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">users, meta, err := h.userService.GetAllUsersWithMeta(params)
-        if err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">return c.Status(http.StatusOK).JSON(&amp;entities.PaginatedResponse{
-                SuccessResponse: response.SuccessResponse{
-                        Code:    response.Success,
-                        Message: "Users retrieved successfully",
-                        Data:    users,
-                },
-                Meta: meta,
-        })</span>
-}
-
-func (h *userHandler) GetUser(c *fiber.Ctx) error <span class="cov8" title="1">{
-        var params entities.GetUserByIdParams
-        params.UserID = c.Params("id")
-        if err := params.Validate(); err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">user, err := h.userService.GetUserByID(params)
-        if err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">return c.Status(http.StatusOK).JSON(&amp;response.SuccessResponse{
-                Code:    response.Success,
-                Message: "User retrieved successfully",
-                Data:    user,
-        })</span>
-}
-</pre>
-		
-		<pre class="file" id="file8" style="display: none">package repository
-
-import (
-        models "github.com/Testzyler/banking-api/app/models"
-        "gorm.io/gorm"
-)
-
-type userRepository struct {
-        db *gorm.DB
-}
-type UserRepository interface {
-        GetByID(userID string) (*models.User, error)
-        GetAll(perPage, page int, search string) ([]*models.User, error)
-        GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error)
-}
-
-func NewUserRepository(db *gorm.DB) UserRepository <span class="cov8" title="1">{
-        return &amp;userRepository{db: db}
-}</span>
-
-func (r *userRepository) GetByID(userID string) (*models.User, error) <span class="cov8" title="1">{
-        var user models.User
-        err := r.db.Where("user_id = ?", userID).First(&amp;user).Error
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, err
-        }</span>
-
-        <span class="cov8" title="1">return &amp;user, nil</span>
-}
-
-func (r *userRepository) GetAll(perPage, page int, search string) ([]*models.User, error) <span class="cov8" title="1">{
-        var users []*models.User
-        err := r.db.Order("name ASC").Limit(perPage).Offset((page - 1) * perPage).Find(&amp;users).Error
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, err
-        }</span>
-
-        <span class="cov8" title="1">return users, nil</span>
-}
-
-func (r *userRepository) GetAllWithCount(perPage, page int, search string) ([]*models.User, int64, error) <span class="cov8" title="1">{
-        var users []*models.User
-        var total int64
-
-        // Build the query for data retrieval
-        dataQuery := r.db.Model(&amp;models.User{})
-
-        // Apply search filter if provided
-        if search != "" </span><span class="cov8" title="1">{
-                dataQuery = dataQuery.Where("name LIKE ?", "%"+search+"%")
-        }</span>
-
-        // Calculate offset - ensure it's never negative and always specified
-        <span class="cov8" title="1">offset := (page - 1) * perPage
-        if offset &lt; 0 </span><span class="cov8" title="1">{
-                offset = 0
-        }</span>
-
-        // Get paginated results first (to match test expectations) - Always specify both Limit and Offset
-        <span class="cov8" title="1">err := dataQuery.Order("name ASC").Limit(perPage).Offset(offset).Find(&amp;users).Error
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, 0, err
-        }</span>
-
-        // Build a separate query for count
-        <span class="cov8" title="1">countQuery := r.db.Model(&amp;models.User{})
-
-        // Apply the same search filter for count
-        if search != "" </span><span class="cov8" title="1">{
-                countQuery = countQuery.Where("name LIKE ?", "%"+search+"%")
-        }</span>
-
-        // Get total count
-        <span class="cov8" title="1">if err := countQuery.Count(&amp;total).Error; err != nil </span><span class="cov8" title="1">{
-                return nil, 0, err
-        }</span>
-
-        <span class="cov8" title="1">return users, total, nil</span>
-}
-</pre>
-		
-		<pre class="file" id="file9" style="display: none">package service
-
-import (
-        "math"
-
-        entities "github.com/Testzyler/banking-api/app/entities"
-        "github.com/Testzyler/banking-api/app/features/users/repository"
-        models "github.com/Testzyler/banking-api/app/models"
-        "github.com/Testzyler/banking-api/server/exception"
-        "gorm.io/gorm"
-)
-
-type userService struct {
-        userRepo repository.UserRepository
-}
-
-type UserService interface {
-        GetUserByID(params entities.GetUserByIdParams) (*models.User, error)
-        GetAllUsers(params entities.PaginationParams) ([]*models.User, error)
-        GetAllUsersWithMeta(params entities.PaginationParams) ([]*models.User, entities.PaginationMeta, error)
-}
-
-func NewUserService(userRepo repository.UserRepository) UserService <span class="cov8" title="1">{
-        return &amp;userService{
-                userRepo: userRepo,
-        }
-}</span>
-
-func (s *userService) GetUserByID(params entities.GetUserByIdParams) (*models.User, error) <span class="cov8" title="1">{
-        user, err := s.userRepo.GetByID(params.UserID)
-        if err != nil </span><span class="cov8" title="1">{
-                // Convert to business exception
-                if err == gorm.ErrRecordNotFound </span><span class="cov8" title="1">{
-                        return nil, exception.NewUserNotFoundError(params.UserID)
-                }</span>
-                <span class="cov8" title="1">return nil, exception.NewInternalError(err)</span>
-        }
-
-        <span class="cov8" title="1">return user, nil</span>
-}
-
-func (s *userService) GetAllUsers(paginationParams entities.PaginationParams) ([]*models.User, error) <span class="cov8" title="1">{
-        users, err := s.userRepo.GetAll(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, exception.NewInternalError(err)
-        }</span>
-
-        <span class="cov8" title="1">return users, nil</span>
-}
-
-func (s *userService) GetAllUsersWithMeta(paginationParams entities.PaginationParams) ([]*models.User, entities.PaginationMeta, error) <span class="cov8" title="1">{
-        users, total, err := s.userRepo.GetAllWithCount(paginationParams.PerPage, paginationParams.Page, paginationParams.Search)
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, entities.PaginationMeta{}, exception.NewInternalError(err)
-        }</span>
-
-        // Calculate pagination metadata
-        <span class="cov8" title="1">totalPages := int(math.Ceil(float64(total) / float64(paginationParams.PerPage)))
-        hasNext := paginationParams.Page &lt; totalPages
-        hasPrevious := paginationParams.Page &gt; 1
-
-        meta := entities.PaginationMeta{
-                Page:        paginationParams.Page,
-                PerPage:     paginationParams.PerPage,
-                Total:       int(total),
-                TotalPages:  totalPages,
-                HasNext:     hasNext,
-                HasPrevious: hasPrevious,
-        }
-
-        return users, meta, nil</span>
+        <span class="cov8" title="1">return homeData, nil</span>
 }
 </pre>
 		

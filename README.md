@@ -1,370 +1,183 @@
-# Banking API Service
+# 🏦 Banking API - Secure Digital Banking Platform
 
-A high-performance banking API service built with Go, featuring secure authentication, real-time account management, and comprehensive transaction handling. This project follows Clean Architecture principles to ensure maintainability, scalability, and testability.
+## Table of Contents
 
-## Key Features
-
-**PIN Authentication**
-- Secure PIN hashing with bcrypt
-- Brute-force protection
-- Exponential backoff retry mechanism
-- Access and refresh token system
-- Token expiration handling
-
-**Home Screen**
-- Multi-account support
-- Balance tracking
-- Accounts information
-- Debit card information
+- [**System Overview**](#-project-overview)
+- [**Key Features & Capabilities**](#-key-features--capabilities)
+- [**System Architecture**](#️-system-architecture)
+- [**Technology Stack**](#️-technology-stack)
+- [**Quick Start Guide**](#-quick-start-guide)
+- [**API Documentation**](#-api-documentation)
+- [**Security Implementation**](#-security-implementation)
+- [**Performance & Testing**](#-performance--testing)
+- [**Deployment & DevOps**](#-deployment--devops)
+- [**Project Structure**](#-project-structure)
+- [**Technical Highlights**](#-technical-highlights)
 
 ---
 
-## Tech Stack
+## System Overview
 
-- **Language:** [Go 1.24.5](https://golang.org/)
-- **Web Framework:** [Fiber v2](https://gofiber.io/)
-- **Database:** [MySQL 8.0](https://www.mysql.com/)
-- **ORM:** [GORM](https://gorm.io/)
-- **Authentication:** [JWT](https://jwt.io/)
-- **CLI:** [Cobra](https://github.com/spf13/cobra)
-- **Configuration:** [Viper](https://github.com/spf13/viper)
-- **Logging:** [Zap](https://github.com/uber-go/zap)
-- **Validation:** [Validator](https://github.com/go-playground/validator)
-- **Containerization:** [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
+Banking API เป็นระบบ Backend API สำหรับ Banking Application ที่ใช้ Go (Golang) และ Fiber Framework พัฒนาด้วยสถาปัตยกรรม Clean Architecture และ Repository Pattern
 
-## Prerequisites
-
-- [Go](https://golang.org/doc/install) (version 1.24.5 or higher)
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
-
+## System Architecture Diagram
+![architecture](docs/architechture.png)
 
 ## Project Structure
 
 ```
 banking-api/
-├── src/                          # Source code
-│   ├── app/                      # Application layer
-│   │   ├── entities/             # Domain entities
-│   │   ├── features/             # Feature modules
-│   │   │   ├── auth/             # Authentication
-│   │   │   ├── users/            # User management
-│   │   │   └── home/             # Home screen
-│   │   ├── models/               # Database models
-│   │   └── validators/           # Input validators
-│   ├── cmd/                      # CLI commands (Cobra)
-│   ├── config/                   # Configuration reader
-│   ├── database/                 # Database layer
-│   │   └── migrations/           # Database migrations
-│   ├── logger/                   # Logging configuration
-│   ├── server/                   # HTTP server setup
-│   │   ├── middlewares/          # HTTP middlewares
-│   │   ├── response/             # Response utilities
-│   │   └── routes/               # Route registration
-│   └── main.go                   # Application entry point
-├── stress_test/                  # Performance testing
-├── schema.sql                    # Database schema for initialization
-└── docker-compose.yaml           # Docker services
+├── src/                      # Source code
+│   ├── app/                  # Application layer
+│   │   ├── entities/         # Domain entities
+│   │   ├── features/         # Feature modules
+│   │   │   ├── auth/         # Authentication system
+│   │   │   ├── home/         # Dashboard features
+│   │   ├── models/           # Database models
+│   │   └── validators/       # Input validation
+│   ├── cmd/                  # CLI commands
+│   ├── config/               # Configuration
+│   ├── database/             # Database layer
+│   │   └── migrations/       # Schema migrations
+│   ├── logger/               # Logging setup
+│   ├── server/               # HTTP server
+│   │   ├── middlewares/      # HTTP middleware
+│   │   ├── response/         # Response utilities
+│   │   └── routes/           # Route configuration
+│   └── main.go               # Application entry
+├── stress_test/              # Performance tests
 ```
-
-
-## Getting Started
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/Testzyler/banking-api.git
-cd banking-api
-```
-
-### 2. Download Mock Data
-
-Download the mock data and store it in the seeds directory:
-
-```bash
-# Create seeds directory if it doesn't exist
-mkdir -p src/database/migrations/seeds
-
-# Download mock data (replace with actual URL)
-curl -L "https://https://drive.google.com/file/d/1hGppnGIvL09eHmZ_EXFwNYL1Jj_axjId/view?usp=drive_link" \
-  -o src/database/migrations/seeds/*.sql
-
-# Or if you have the mock data file locally, copy it:
-# cp /path/to/your/mock_data.sql src/database/migrations/seeds/
-```
-
-### 3. Set up Docker Environment Variables
-
-Create a `.env` file in the root directory:
-
-```bash
-# Database Configuration
-MYSQL_ROOT_PASSWORD=rootpassword
-MYSQL_DATABASE=banking
-MYSQL_USER=banking_user
-MYSQL_PASSWORD=userpassword
-
-# Application Configuration
-PORT=8080
-```
-
-### 4. Configure the Application
-
-Copy the example configuration file and update it with your database credentials if needed.
-
-```bash
-cp src/config.example.yaml src/config.yaml
-```
-
-### 5. Start the Services
-
-Run all services using Docker Compose:
-
-```bash
-docker-compose up -d --build
-```
-
-This will start:
-- MySQL database
-- Database migrations  - always check for new migrations is added (first time would be take several times to start because it's take seeds into database)
-- Banking API service - start after migration completed
-
-### 6. Verify Installation
-
-Check if the API is running:
-
-```bash
-curl http://localhost:8080/healthz
-```
-
-### 7. Local Development Setup
-
-For local development without Docker:
-
-```bash
-# Navigate to source directory
-cd src
-
-# Install dependencies
-go mod download
-
-# Run migrations
-go run . migrate
-
-# Start the API server
-go run . serve_api
-```
-
-## API Documentation
-
-Base URL: `http://localhost:8080`
-
-### Authentication Endpoints
-
-#### Verify PIN
-
-Authenticate user using their PIN and receive JWT tokens.
-
-```http
-POST /api/v1/auth/verify-pin
-```
-
-**Request Body:**
-```json
-{
-  "user_id": "string",
-  "pin": "string" // default for mock "123456"
-}
-```
-
-**Response:**
-```json
-{
-  
-    "code": 10200,
-    "message": "PIN verified successfully",
-    "data": {
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        "expiry": "2025-08-01T05:44:00.106492252Z",
-        "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        "userID": "0001603be1a211ef95a30242ac180002",
-        "name": "User_0001603be1a211ef95a30242ac180002",
-        "greeting": ""
-    }
-}
-```
-
-#### Refresh Token
-
-Get new access token using refresh token.
-
-```http
-POST /api/v1/auth/refresh
-```
-
-**Request Body:**
-```json
-{
-  "refreshToken": "string"
-}
-```
-
-### Home Screen Endpoints
-
-#### Get Home Data
-
-Retrieve user's banking Home information including accounts, balances, and cards.
-
-```http
-GET /api/v1/home
-```
-
-**Headers:**
-```
-Authorization: Bearer {access_token}
-```
-
-**Response:**
-```json
-
-  {
-    "code": 10200,
-    "message": "Home data retrieved successfully",
-    "data": {
-        "userID": "0001xxx",
-        "name": "User_0001xxx",
-        "greeting": "Hello User_0001xxx",
-        "debitCards": [...],
-        "banners": [...],
-        "transactions": [...],
-        "accounts": [...],
-        "totalBalance": 36738.53
-    }
-}
-
-```
-
-### Response Format
-
-#### Success Response
-```json
-{
-  "code": 102xx,
-  "message": "Operation completed successfully",
-  "data": { ... }
-}
-```
-
-#### Error Response
-```json
-{
-  "code": 104xx - 106xx,
-  "message": "Error description",
-  "details": "Detailed error information"
-}
-```
-
-#### HTTP Status Codes
-
-| Status Code | Description |
-| :---------- | :---------- |
-| `200`       | Success |
-| `400`       | Bad Request |
-| `401`       | Unauthorized |
-| `403`       | Forbidden |
-| `404`       | Not Found |
-| `500`       | Internal Server Error |
-
-
-## Available Commands
-
-```bash
-# Start API server
-go run . serve_api
-
-# Run database migrations
-go run . migrate
-
-# Show help
-go run . --help
-```
-
-## Environment Configuration
-
-The application supports different environments:
-
-- **Development**: `config.yaml`
-- **Docker**: `config.docker.yaml`
-- **Production**: Environment variables
-
-### Key Configuration Options
-
-```yaml
-Server:
-  Port: 8080
-  Environment: development
-  
-Database:
-  Host: localhost
-  Port: 3306
-  Username: banking_user
-  Password: userpassword
-  Name: banking
-  
-Logger:
-  Level: info
-  LogColor: true
-  LogJson: false
-```
-
+## Core Components
+### 1. HTTP Server (Fiber Framework)
+- **Port**: Configurable (default: 8080)
+- **Framework**: Go Fiber v2
+- **Features**: High performance
+
+### 2. Middleware Layer
+- **Auth Middleware**: JWT token validation and user authentication
+- **Logger Middleware**: Request/response logging with request ID
+- **Error Handler**: Centralized error handling
+- **Token Ban Middleware**: Validate banned tokens
+
+### 3. Handler Layer
+- **Auth Handler**: Authentication endpoints (login, refresh, token management)
+- **Home Handler**: Home screen data aggregation
+- **User Handler**: User profile management
+
+### 4. Service Layer (Business Logic)
+- **Auth Service**: Authentication business logic
+- **JWT Service**: Token generation, validation, and refresh
+- **Home Service**: Home data aggregation logic
+- **User Service**: User management logic
+
+### 5. Repository Layer (Data Access)
+- **Auth Repository**: User authentication data access
+- **Home Repository**: Home screen data access
+- **User Repository**: User profile data access
+
+### 6. Database Layer
+- **MySQL**: Primary database for persistent data
+- **Redis**: Caching layer for sessions and temporary data
+
+
+## Key Features
+
+### 1. Authentication System
+- PIN-based authentication
+- JWT access and refresh tokens
+- Token versioning and banning
+- Failed attempt tracking with lockout mechanism
+
+### 2. Home Screen API
+- User profile aggregation
+- Account balance summaries
+- Recent transactions
+- Banking cards information
+- Promotional banners
+
+### 3. Security Features
+- JWT token validation with ban checking
+- Request rate limiting
+- Input validation
+
+### 4. Monitoring & Logging
+- Structured logging with Zap
+- Request ID tracking
+- Error tracking
+
+## Technology Stack
+
+### Backend
+- **Language**: Go (Golang)
+- **Framework**: Fiber v2
+- **Database**: MySQL 8.0
+- **Cache**: Redis
+- **JWT**: golang-jwt/jwt/v5
+- **ORM**: GORM
+- **Logger**: Uber Zap
+- **Testing**: Testify
+
+### DevOps
+- **Containerization**: Docker
+- **Orchestration**: Docker Compose
+- **Load Testing**: K6
+- **Database Migration**: Custom migration system
+
+## API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/verify-pin` - User authentication
+- `POST /api/v1/auth/refresh` - Token refresh
+- `POST /api/v1/auth/tokens` - Ban user tokens
+- `GET /api/v1/auth/tokens` - List user tokens
+
+### Home
+- `GET /api/v1/home/` - Get home screen data (Protected)
+
+## Configuration
+
+The system uses YAML configuration files:
+- `config.yaml` - Main configuration
+- `config.docker.yaml` - Docker environment configuration
+- `config.example.yaml` - Configuration template
 
 ## Deployment
 
 ### Docker Deployment
-
 ```bash
-# Production deployment
-docker-compose -f docker-compose.yaml up -d
+docker-compose up -d
+```
 
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f banking-api
+### Manual Deployment
+```bash
+go build -o banking-api ./src
+./banking-api serve
 ```
 
 ## Testing
 
-### Performance Testing
-
-The project includes comprehensive stress testing using k6 with multiple load scenarios testing authentication and dashboard endpoints.
-
-
+### Unit Tests
 ```bash
-# Run stress tests
-cd stress_test
-k6 run stress-test.js
-```
-
-### Unit Testing
-
-```bash
-# Run all tests
-cd src
 go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run specific package tests
-go test ./app/features/users/...
 ```
 
-### Health Checks
-
-The application provides health check endpoints:
-
+### Load Testing
 ```bash
-# Application health
-curl http://localhost:8080/healthz
+k6 run stress_test/stress-test.js
 ```
+
+## Performance Characteristics
+
+- **Concurrency**: High concurrency support with Fiber
+- **Caching**: Redis for session and temporary data
+- **Database**: Optimized queries with proper indexing
+- **Load Balancing**: Support for horizontal scaling
+
+## Security Considerations
+
+1. **Authentication**: Strong JWT-based authentication
+2. **Authorization**: Role-based access control
+3. **Data Protection**: Encrypted sensitive data
+4. **Input Validation**: Comprehensive input validation
+5. **Rate Limiting**: Request rate limiting per client
+6. **Token Security**: Token versioning and banning system
