@@ -1,15 +1,15 @@
 # Banking API 
 
 ## Table of Contents
-- [**Getting Started**](#1-getting-started)
+- [**Getting Started**](/docs/1-get-start.md)
 - [**System Architecture**](#system-architecture)
 - [**Project Structure**](#project-structure)
 - [**Core Components**](#core-components)
 - [**Key Features**](#key-features)
-- [**Design Principles**](#2-design-principles)
-- [**Authentication Flow**](#3-authentication-flow)
-- [**API Reference**](#4-api-reference)
-- [**Test Summary**](#5-test-summary)
+- [**Design Principles**](/docs/2-design-principles.md)
+- [**Authentication Flow**](/docs/3-authentication-flow.md)
+- [**API Reference**](/docs/4-api-reference.md)
+- [**Test Summary**](/docs/5-test-summary.md)
 
 ---
 

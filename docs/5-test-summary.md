@@ -1,9 +1,15 @@
 
 ## Test Coverage
-- **Authentication Flow**: PIN verification + JWT token generation
-- **Dashboard API**: Account data retrieval with authorization
-- **Error Handling**: Invalid credentials and timeout scenarios
-- **Response Time Monitoring**: Custom metrics for auth and dashboard endpoints
+
+| Package | Coverage |
+|---------|----------|
+| Auth Handler | ![Coverage](https://img.shields.io/badge/coverage-47.2%25-red.svg) |
+| Auth Repository | ![Coverage](https://img.shields.io/badge/coverage-32.9%25-red.svg) |
+| Auth Service | ![Coverage](https://img.shields.io/badge/coverage-79.4%25-yellow.svg) |
+| JWT Service | ![Coverage](https://img.shields.io/badge/coverage-65.3%25-yellow.svg) |
+| Home Repository | ![Coverage](https://img.shields.io/badge/coverage-11.4%25-red.svg) |
+| Home Service | ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg) |
+
 
 ## Stress Test Scenarios
 
