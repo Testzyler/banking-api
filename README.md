@@ -4,10 +4,12 @@ A high-performance banking API service built with Go, featuring secure authentic
 
 ## Key Features
 
-**Secure Authentication**
-- PIN-based authentication with JWT tokens
-- Refresh token mechanism
-- Brute-force protection with exponential backoff
+**PIN Authentication**
+- Secure PIN hashing with bcrypt
+- Brute-force protection
+- Exponential backoff retry mechanism
+- Access and refresh token system
+- Token expiration handling
 
 **Home Screen**
 - Multi-account support
@@ -47,7 +49,7 @@ banking-api/
 │   │   ├── features/             # Feature modules
 │   │   │   ├── auth/             # Authentication
 │   │   │   ├── users/            # User management
-│   │   │   └── dashboard/        # Dashboard
+│   │   │   └── home/             # Home screen
 │   │   ├── models/               # Database models
 │   │   └── validators/           # Input validators
 │   ├── cmd/                      # CLI commands (Cobra)
@@ -207,14 +209,14 @@ POST /api/v1/auth/refresh
 }
 ```
 
-### Dashboard Endpoints
+### Home Screen Endpoints
 
-#### Get Dashboard Data
+#### Get Home Data
 
-Retrieve user's banking dashboard information including accounts, balances, and cards.
+Retrieve user's banking Home information including accounts, balances, and cards.
 
 ```http
-GET /api/v1/dashboard/accounts
+GET /api/v1/home
 ```
 
 **Headers:**
@@ -227,7 +229,7 @@ Authorization: Bearer {access_token}
 
   {
     "code": 10200,
-    "message": "Dashboard data retrieved successfully",
+    "message": "Home data retrieved successfully",
     "data": {
         "userID": "0001xxx",
         "name": "User_0001xxx",
@@ -315,23 +317,6 @@ Logger:
   LogJson: false
 ```
 
-## Security Features
-
-**PIN Authentication**
-- Secure PIN hashing with bcrypt
-- Brute-force protection
-- Exponential backoff retry mechanism
-
-**JWT Token Management**
-- Access and refresh token system
-- Token expiration handling
-
-**Input Validation & Security**
-- Comprehensive request validation with go-playground/validator
-- SQL injection prevention through GORM parameterized queries
-- JSON-only API responses (inherent XSS protection)
-- CORS middleware configuration
-- URL parameter escaping
 
 ## Deployment
 
@@ -354,30 +339,6 @@ docker-compose logs -f banking-api
 
 The project includes comprehensive stress testing using k6 with multiple load scenarios testing authentication and dashboard endpoints.
 
-#### Test Scenarios
-
-**1. Light Load Test**
-- **Virtual Users**: 50 concurrent users
-- **Duration**: 1 minute
-- **Purpose**: Baseline performance validation
-
-**2. Normal Load Test** 
-- **Virtual Users**: Ramp 0→200→400→0 over 4 minutes
-- **Pattern**: 1min ramp-up to 200, 2min peak at 400, 1min ramp-down
-- **Purpose**: Typical usage simulation
-
-**3. Heavy Load Test**
-- **Virtual Users**: Ramp 0→300→600→800→0 over 8 minutes  
-- **Pattern**: 2min→300, 3min→600, 2min→800 peak, 1min→0
-- **Purpose**: Stress testing and capacity planning
-
-#### Test Coverage
-- **Authentication Flow**: PIN verification + JWT token generation
-- **Dashboard API**: Account data retrieval with authorization
-- **Error Handling**: Invalid credentials and timeout scenarios
-- **Response Time Monitoring**: Custom metrics for auth and dashboard endpoints
-
-#### Performance Results
 
 ```bash
 # Run stress tests
@@ -407,11 +368,3 @@ The application provides health check endpoints:
 # Application health
 curl http://localhost:8080/healthz
 ```
-
-## Additional Resources
-
-- [Fiber Documentation](https://docs.gofiber.io/)
-- [GORM Documentation](https://gorm.io/docs/)  
-- [JWT Best Practices](https://auth0.com/blog/a-look-at-the-latest-draft-for-jwt-bcp/)
-- [Go Testing](https://golang.org/pkg/testing/)
-- [Exponential backoff](https://cloud.google.com/memorystore/docs/redis/exponential-backoff)

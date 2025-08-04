@@ -1,8 +1,9 @@
-package dashboard
+package handler
 
 import (
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/home/service"
+	"github.com/Testzyler/banking-api/server/exception"
 	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
@@ -22,9 +23,17 @@ func NewHomeHandler(router fiber.Router, service service.HomeService) {
 }
 
 func (h *homeHandler) GetHomeData(c *fiber.Ctx) error {
-	userID := c.Locals("user").(*entities.Claims).UserID
+	userInterface := c.Locals("user")
+	if userInterface == nil {
+		return exception.ErrInternalServer
+	}
 
-	data, err := h.service.GetHomeData(userID)
+	user, ok := userInterface.(entities.Claims)
+	if !ok {
+		return exception.ErrInternalServer
+	}
+
+	data, err := h.service.GetHomeData(user.UserID)
 	if err != nil {
 		return err
 	}

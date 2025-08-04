@@ -16,6 +16,14 @@ Database:
   MaxOpenConns: 100
   MaxIdleTimeInSecond: 30
 
+Redis:
+  Host: redis
+  Port: 6379
+  Password: redispassword
+  DB: 0
+  MaxIdle: 10
+  IdleTimeout: 240s
+  
 Logger:
   Level: info           # debug, info, warn, error
   LogColor: true        # true or false

@@ -15,5 +15,5 @@ func (p *GetUserByIdParams) Validate() error {
 type User struct {
 	UserID   string `json:"userID"`
 	Name     string `json:"name"`
-	Greeting string `json:"greeting"`
+	Greeting string `json:"greeting,omitempty"`
 }

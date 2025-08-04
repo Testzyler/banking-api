@@ -3,9 +3,10 @@ package models
 import "time"
 
 type User struct {
-	UserID   string `gorm:"column:user_id;primaryKey"`
-	Name     string `gorm:"column:name"`
-	Password string `gorm:"column:password"`
+	UserID    string     `gorm:"column:user_id;primaryKey"`
+	Name      string     `gorm:"column:name"`
+	Password  string     `gorm:"column:password"`
+	UpdatedAt *time.Time `gorm:"column:updated_at;autoUpdateTime"`
 
 	// Relationships - Proper GORM associations
 	Accounts      []Account       `gorm:"foreignKey:UserID;references:UserID" json:"accounts,omitempty"`

@@ -23,6 +23,7 @@ func Migrate_CreateIndex(db *gorm.DB) error {
 	statements := []string{
 		// users
 		`CREATE INDEX idx_users_user_id ON users(user_id);`,
+		`CREATE INDEX idx_users_name ON users(name);`,
 
 		// accounts
 		`CREATE INDEX idx_accounts_user_id ON accounts(user_id);`,

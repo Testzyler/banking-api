@@ -158,3 +158,30 @@ func NewInvalidPinError(remainingAttempts int) *response.ErrorResponse {
 		Details:        fmt.Sprintf("The PIN is incorrect. %d attempts remaining before lock", remainingAttempts),
 	}
 }
+
+func NewTokenBannedError() *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "Token has been banned",
+		Details:        "This token has been revoked and can no longer be used",
+	}
+}
+
+func NewTokenOutdatedError(reason string) *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusUnauthorized,
+		Code:           response.ErrCodeUnauthorized,
+		Message:        "Token is outdated",
+		Details:        reason,
+	}
+}
+
+func NewTokenBanFailedError() *response.ErrorResponse {
+	return &response.ErrorResponse{
+		HttpStatusCode: fiber.StatusInternalServerError,
+		Code:           response.ErrCodeInternalServer,
+		Message:        "Failed to ban tokens",
+		Details:        "An error occurred while trying to ban user tokens",
+	}
+}

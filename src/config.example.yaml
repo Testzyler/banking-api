@@ -16,6 +16,24 @@ Database:
   MaxOpenConns: 100
   MaxIdleTimeInSecond: 30
 
+Redis:
+  # Single instance configuration
+  Host: localhost
+  Port: 6379
+  Password: redispassword
+  DB: 0
+  MaxIdle: 10
+  IdleTimeout: 240s
+  
+  # Sentinel configuration (set UseSentinel to true to enable)
+  UseSentinel: false
+  SentinelAddrs:
+    - "localhost:26379"
+    - "localhost:26380"
+    - "localhost:26381"
+  SentinelPassword: ""
+  MasterName: "mymaster"
+
 Logger:
   Level: info           # debug, info, warn, error
   LogColor: true        # true or false
@@ -29,6 +47,6 @@ Auth:
     RefreshTokenExpiry: 7 # in days
 
   Pin:
-    BaseDuration: 10 
-    MaxLockDuration: 300
-    LockThreshold: 3
+    BaseDuration: 10s      # Base duration for PIN lock (e.g., 10s, 1m, 5m)
+    MaxLockDuration: 300s  # Maximum lock duration (e.g., 300s, 5m, 10m)
+    LockThreshold: 3       # Number of failed attempts before lock

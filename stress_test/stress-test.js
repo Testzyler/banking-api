@@ -157,7 +157,7 @@ function testDashboard(authData) {
     };
 
     const start = Date.now();
-    const res = http.get(`${BASE_URL}/api/v1/dashboard/accounts`, params);
+    const res = http.get(`${BASE_URL}/api/v1/home`, params);
     const duration = Date.now() - start;
     dashboardResponseTime.add(duration);
 

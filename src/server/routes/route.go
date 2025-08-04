@@ -14,22 +14,23 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func InitHandlers(api fiber.Router, db database.DatabaseInterface) {
-
-	// Register Home handler
+func InitHandlers(api fiber.Router, db database.DatabaseInterface, redisDB *database.RedisDatabase) {
+	// Register Home handler with AuthMiddleware protection
 	homeHandler.NewHomeHandler(
 		api,
 		homeService.NewHomeService(
-			homeRepository.NewHomeRepository(db.GetDB()),
+			homeRepository.NewHomeRepository(database.GetDatabase().GetDB()),
 		),
 	)
 
 	// Register Auth handler
+	authRepo := authRepository.NewAuthRepository(database.GetDatabase().GetDB(), database.GetCache())
+	jwtService := authService.NewJwtService(config.GetConfig(), authRepo)
 	authHandler.NewAuthHandler(
 		api,
 		authService.NewAuthService(
-			authRepository.NewAuthRepository(db.GetDB()),
-			authService.NewJwtService(config.GetConfig()),
+			authRepo,
+			jwtService,
 			config.GetConfig(),
 		),
 	)

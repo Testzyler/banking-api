@@ -1,4 +1,29 @@
 
+## Test Coverage
+- **Authentication Flow**: PIN verification + JWT token generation
+- **Dashboard API**: Account data retrieval with authorization
+- **Error Handling**: Invalid credentials and timeout scenarios
+- **Response Time Monitoring**: Custom metrics for auth and dashboard endpoints
+
+## Stress Test Scenarios
+
+**1. Light Load Test**
+- **Virtual Users**: 50 concurrent users
+- **Duration**: 1 minute
+- **Purpose**: Baseline performance validation
+
+**2. Normal Load Test** 
+- **Virtual Users**: Ramp 0→200→400→0 over 4 minutes
+- **Pattern**: 1min ramp-up to 200, 2min peak at 400, 1min ramp-down
+- **Purpose**: Typical usage simulation
+
+**3. Heavy Load Test**
+- **Virtual Users**: Ramp 0→300→600→800→0 over 8 minutes  
+- **Pattern**: 2min→300, 3min→600, 2min→800 peak, 1min→0
+- **Purpose**: Stress testing and capacity planning
+
+
+## Performance Results
 **Test Summary:**
 - ✅ **Multiple load scenarios** with up to 800 concurrent users
 - ✅ **Complete transaction cycles** (auth + dashboard calls)
