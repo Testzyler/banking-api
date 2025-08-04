@@ -3,27 +3,37 @@ Server:
   ReadTimeout: 30s
   WriteTimeout: 30s
   IdleTimeout: 60s
-  MaxConnections: 100
+  MaxConnections: 500
   ShutdownTimeout: 30  # Graceful shutdown timeout in seconds
-  Environment: production  # development, production
+  Environment: development  # development, production
 
 Database:
-  Host: mysql_db
+  Host: localhost
   Port: 3306
   Username: banking_user
   Password: userpassword
   Name: banking
-  MaxOpenConns: 100
+  MaxOpenConns: 500
   MaxIdleTimeInSecond: 30
 
 Redis:
-  Host: redis
+  # Single instance configuration
+  Host: localhost
   Port: 6379
   Password: redispassword
   DB: 0
   MaxIdle: 10
   IdleTimeout: 240s
   
+  # Sentinel configuration (set UseSentinel to true to enable)
+  UseSentinel: false
+  SentinelAddrs:
+    - "localhost:26379"
+    - "localhost:26380"
+    - "localhost:26381"
+  SentinelPassword: ""
+  MasterName: "mymaster"
+
 Logger:
   Level: info           # debug, info, warn, error
   LogColor: true        # true or false
@@ -33,10 +43,10 @@ Auth:
   Jwt:
     AccessTokenSecret: banking-api-access-secret-key-change-in-production
     RefreshTokenSecret: banking-api-refresh-secret-key-change-in-production
-    AccessTokenExpiry: 5 # in minutes
+    AccessTokenExpiry: 60 # in minutes
     RefreshTokenExpiry: 7 # in days
 
   Pin:
     BaseDuration: 10s
     MaxLockDuration: 300s
-    LockThreshold: 3
+    LockThreshold: 3 # times of failed attempts

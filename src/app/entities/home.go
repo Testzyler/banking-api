@@ -1,10 +1,10 @@
 package entities
 
-type DashboardParams struct {
+type HomeParams struct {
 	UserID string `json:"userID" validate:"required,min=3,max=50"`
 }
 
-type DashboardResponse struct {
+type HomeResponse struct {
 	User
 	DebitCards   []DebitCards  `json:"debitCards"`
 	Banners      []Banner      `json:"banners"`

@@ -20,6 +20,21 @@ func NewAuthHandler(router fiber.Router, service service.AuthService) {
 	auth := router.Group("/auth")
 	auth.Post("/verify-pin", handler.VerifyPin)
 	auth.Post("/refresh", handler.RefreshToken)
+	auth.Get("/tokens", handler.ListAllTokens)
+	auth.Post("/ban-tokens", handler.BanAllUserTokens)
+}
+
+func (h *authHandler) ListAllTokens(c *fiber.Ctx) error {
+	tokens, err := h.service.ListTokens(c.Context())
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusOK).JSON(&response.SuccessResponse{
+		Code:    response.Success,
+		Message: "Tokens retrieved successfully",
+		Data:    tokens,
+	})
 }
 
 func (h *authHandler) VerifyPin(c *fiber.Ctx) error {
@@ -32,7 +47,7 @@ func (h *authHandler) VerifyPin(c *fiber.Ctx) error {
 		return err
 	}
 
-	tokenResponse, err := h.service.VerifyPin(params)
+	tokenResponse, err := h.service.VerifyPin(c.Context(), params)
 	if err != nil {
 		return err
 	}
@@ -71,5 +86,31 @@ func (h *authHandler) RefreshToken(c *fiber.Ctx) error {
 		Code:    response.Success,
 		Message: "Token refreshed successfully",
 		Data:    tokenResponse,
+	})
+}
+
+func (h *authHandler) BanAllUserTokens(c *fiber.Ctx) error {
+	var req entities.BanTokensRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(response.ErrorResponse{
+			Code:    response.ErrCodeBadRequest,
+			Message: "User ID is required",
+		})
+	}
+
+	if err := h.service.BanToken(c.Context(), req.UserID); err != nil {
+		if errorResponse, ok := err.(*response.ErrorResponse); ok {
+			return c.Status(errorResponse.HttpStatusCode).JSON(errorResponse)
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(response.ErrorResponse{
+			Code:    response.ErrCodeInternalServer,
+			Message: "Failed to ban token",
+			Details: err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response.SuccessResponse{
+		Code:    response.Success,
+		Message: "Token banned successfully",
 	})
 }

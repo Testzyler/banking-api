@@ -1,18 +1,22 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/Testzyler/banking-api/app/entities"
+	"github.com/Testzyler/banking-api/app/features/auth/repository"
 	"github.com/Testzyler/banking-api/config"
+	"github.com/Testzyler/banking-api/logger"
 	"github.com/Testzyler/banking-api/server/exception"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 type jwtService struct {
-	config *config.Config
+	config   *config.Config
+	authRepo repository.AuthRepository
 }
 
 type JwtService interface {
@@ -20,19 +24,38 @@ type JwtService interface {
 	ValidateAccessToken(tokenString string) (*entities.Claims, error)
 	ValidateRefreshToken(tokenString string) (*entities.Claims, error)
 	RefreshAccessToken(refreshTokenString string) (*entities.TokenResponse, error)
+	ValidateTokenWithBanCheck(tokenString string) (*entities.TokenValidationResult, error)
 }
 
-func NewJwtService(config *config.Config) JwtService {
-	return &jwtService{config: config}
+func NewJwtService(config *config.Config, authRepo repository.AuthRepository) JwtService {
+	return &jwtService{config: config, authRepo: authRepo}
 }
 
 func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenResponse, error) {
-	accessToken, accessExpiry, err := s.generateToken(userID, username, "access")
+	// Generate unique token ID and use current timestamp as token version
+	tokenID := uuid.New().String()
+	tokenVersion := time.Now().Unix()
+	accessTokenParam := entities.GenerateTokenParams{
+		UserID:       userID,
+		Username:     username,
+		TokenVersion: tokenVersion,
+		TokenID:      tokenID,
+		TokenType:    "access",
+	}
+	accessToken, accessExpiry, err := s.generateToken(accessTokenParam)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, _, err := s.generateToken(userID, username, "refresh")
+	refreshTokenID := uuid.New().String()
+	refreshTokenParam := entities.GenerateTokenParams{
+		UserID:       userID,
+		Username:     username,
+		TokenVersion: tokenVersion,
+		TokenID:      refreshTokenID,
+		TokenType:    "refresh",
+	}
+	refreshToken, _, err := s.generateToken(refreshTokenParam)
 	if err != nil {
 		return nil, err
 	}
@@ -41,14 +64,16 @@ func (s *jwtService) GenerateTokens(userID, username string) (*entities.TokenRes
 		Token:        accessToken,
 		Expiry:       accessExpiry,
 		RefreshToken: refreshToken,
+		TokenVersion: tokenVersion,
+		TokenID:      tokenID,
 	}, nil
 }
 
-func (s *jwtService) generateToken(userID, username, tokenType string) (string, time.Time, error) {
+func (s *jwtService) generateToken(param entities.GenerateTokenParams) (string, time.Time, error) {
 	var secret string
 	var expiry time.Duration
 
-	switch tokenType {
+	switch param.TokenType {
 	case "access":
 		secret = s.config.Auth.Jwt.AccessTokenSecret
 		expiry = s.config.Auth.Jwt.AccessTokenExpiry
@@ -63,12 +88,14 @@ func (s *jwtService) generateToken(userID, username, tokenType string) (string, 
 	expiryTime := now.Add(expiry)
 
 	claims := &entities.Claims{
-		UserID:   userID,
-		Username: username,
-		Type:     tokenType,
+		UserID:       param.UserID,
+		Username:     param.Username,
+		Type:         param.TokenType,
+		TokenVersion: param.TokenVersion,
+		TokenID:      param.TokenID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(),
-			Subject:   userID,
+			ID:        param.TokenID,
+			Subject:   param.UserID,
 			Audience:  []string{"banking-api"},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(expiryTime),
@@ -128,7 +155,17 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
 		return nil, err
 	}
 
-	accessToken, accessExpiry, err := s.generateToken(claims.UserID, claims.Username, "access")
+	newTokenID := uuid.New().String()
+	newTokenVersion := time.Now().Unix()
+	// Generate new access token
+	accessTokenParam := entities.GenerateTokenParams{
+		UserID:       claims.UserID,
+		Username:     claims.Username,
+		TokenVersion: newTokenVersion,
+		TokenID:      newTokenID,
+		TokenType:    "access",
+	}
+	accessToken, accessExpiry, err := s.generateToken(accessTokenParam)
 	if err != nil {
 		return nil, err
 	}
@@ -138,9 +175,70 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
 		Expiry:       accessExpiry,
 		RefreshToken: refreshTokenString,
 		UserID:       claims.UserID,
-		User: entities.User{
-			UserID: claims.UserID,
-			Name:   claims.Username,
-		},
+		TokenVersion: newTokenVersion,
+		TokenID:      newTokenID,
+	}, nil
+}
+
+func (s *jwtService) ValidateTokenWithBanCheck(tokenString string) (*entities.TokenValidationResult, error) {
+	claims, err := s.ValidateAccessToken(tokenString)
+	if err != nil {
+		return &entities.TokenValidationResult{
+			Valid:        false,
+			Reason:       "invalid token",
+			TokenVersion: 0,
+		}, err
+	}
+
+	if s.authRepo == nil {
+		return &entities.TokenValidationResult{
+			Valid:        false,
+			Reason:       "Error: auth repository not initialized",
+			TokenVersion: claims.TokenVersion,
+		}, nil
+	}
+
+	ctx := context.Background()
+	isBanned, err := s.authRepo.IsTokenBanned(ctx, claims.TokenID)
+	if err != nil {
+		logger.Errorf("Failed to check if token is banned: %v", err)
+		return &entities.TokenValidationResult{
+			Valid:        true,
+			Reason:       "ban check failed",
+			TokenVersion: claims.TokenVersion,
+		}, nil
+	}
+
+	if isBanned {
+		return &entities.TokenValidationResult{
+			Valid:        false,
+			Reason:       "token is banned",
+			TokenVersion: claims.TokenVersion,
+		}, exception.NewTokenBannedError()
+	}
+
+	validationResult, err := s.authRepo.ValidateTokenVersion(ctx, claims.TokenVersion)
+	if err != nil {
+		logger.Errorf("Failed to validate token version: %v", err)
+		return &entities.TokenValidationResult{
+			Valid:        true,
+			Reason:       "version check failed",
+			TokenVersion: claims.TokenVersion,
+		}, nil
+	}
+
+	if !validationResult.Valid {
+		return &entities.TokenValidationResult{
+			Valid:        false,
+			Reason:       validationResult.Reason,
+			TokenVersion: claims.TokenVersion,
+		}, exception.NewTokenOutdatedError(validationResult.Reason)
+	}
+
+	return &entities.TokenValidationResult{
+		Valid:        true,
+		Reason:       "",
+		TokenVersion: claims.TokenVersion,
+		Claims:       *claims,
 	}, nil
 }

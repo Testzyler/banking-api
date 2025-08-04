@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Server   *Server
 	Database *Database
+	Cache    *CacheConfig
 	Logger   *Logger
 	Auth     *AuthConfig
 }
@@ -34,6 +35,24 @@ type Database struct {
 	Name                string
 	MaxOpenConns        int
 	MaxIdleTimeInSecond int
+}
+
+type CacheConfig struct {
+	// Single instance configuration
+	Host     string
+	Port     int
+	Password string
+	DB       int
+
+	// Connection pool settings
+	MaxIdle     int
+	IdleTimeout time.Duration
+
+	// Sentinel configuration
+	UseSentinel      bool
+	SentinelAddrs    []string
+	SentinelPassword string
+	MasterName       string
 }
 
 type Logger struct {
@@ -110,6 +129,18 @@ func loadConfig(envFile string) *Config {
 			Name:                viper.GetString("Database.Name"),
 			MaxOpenConns:        viper.GetInt("Database.MaxOpenConns"),
 			MaxIdleTimeInSecond: viper.GetInt("Database.MaxIdleTimeInSecond"),
+		},
+		Cache: &CacheConfig{
+			Host:             viper.GetString("Redis.Host"),
+			Port:             viper.GetInt("Redis.Port"),
+			Password:         viper.GetString("Redis.Password"),
+			DB:               viper.GetInt("Redis.DB"),
+			MaxIdle:          viper.GetInt("Redis.MaxIdle"),
+			IdleTimeout:      viper.GetDuration("Redis.IdleTimeout"),
+			UseSentinel:      viper.GetBool("Redis.UseSentinel"),
+			SentinelAddrs:    viper.GetStringSlice("Redis.SentinelAddrs"),
+			SentinelPassword: viper.GetString("Redis.SentinelPassword"),
+			MasterName:       viper.GetString("Redis.MasterName"),
 		},
 		Logger: &Logger{
 			Level:    viper.GetString("Logger.Level"),

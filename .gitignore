@@ -1,5 +1,5 @@
 # Environment variables
-.env
+# .env
 
 # Docker volumes
 db_data/
@@ -19,7 +19,7 @@ logs/
 Thumbs.db
 
 # Configuration files
-config.yaml
+# config.yaml
 
 # binary files
 banking-api

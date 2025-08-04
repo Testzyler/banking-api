@@ -20,6 +20,7 @@ type Server struct {
 	App            *fiber.App
 	Config         *config.Config
 	DB             database.DatabaseInterface
+	Cache          *database.RedisDatabase
 	isShuttingDown bool
 }
 
@@ -33,16 +34,23 @@ func NewServer(ctx context.Context, config *config.Config) *Server {
 		ErrorHandler:          middlewares.ErrorHandler(), // Use the new error handler middleware
 	})
 
-	// Initialize database
-	db, err := database.NewDatabase(config)
+	err := database.InitDatabase(config)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", "error", err)
 	}
 
+	err = database.InitCache(config.Cache)
+	if err != nil {
+		logger.Fatal("Failed to connect to cache", "error", err)
+	}
+
+	db := database.GetDatabase()
+	cache := database.GetCache()
 	server := &Server{
 		App:            app,
 		Config:         config,
 		DB:             db,
+		Cache:          cache,
 		isShuttingDown: false,
 	}
 
@@ -93,7 +101,7 @@ func (s *Server) setupRoutes() {
 	api := s.App.Group("/api/v1")
 
 	// Initialize handlers
-	handlers.InitHandlers(api, s.DB)
+	handlers.InitHandlers(api, s.DB, s.Cache)
 
 	// Setup 404 handler
 	s.App.Use(middlewares.NotFoundHandler)

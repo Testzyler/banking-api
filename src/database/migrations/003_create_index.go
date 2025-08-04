@@ -21,6 +21,10 @@ func init() {
 func Migrate_CreateIndex(db *gorm.DB) error {
 
 	statements := []string{
+		// users
+		`CREATE INDEX idx_users_user_id ON users(user_id);`,
+		`CREATE INDEX idx_users_name ON users(name);`,
+
 		// accounts
 		`CREATE INDEX idx_accounts_user_id ON accounts(user_id);`,
 
@@ -38,7 +42,6 @@ func Migrate_CreateIndex(db *gorm.DB) error {
 
 		// debit_cards
 		`CREATE INDEX idx_debit_cards_user_id ON debit_cards(user_id);`,
-		`CREATE INDEX idx_debit_card_status_card_id ON debit_card_status(card_id);`,
 
 		// debit_card_details
 		`CREATE INDEX idx_debit_card_details_user_id ON debit_card_details(user_id);`,
@@ -46,6 +49,11 @@ func Migrate_CreateIndex(db *gorm.DB) error {
 
 		// debit_card_design
 		`CREATE INDEX idx_debit_card_design_card_id ON debit_card_design(card_id);`,
+		`CREATE INDEX idx_debit_card_design_user_id ON debit_card_design(user_id);`,
+
+		// debit_card_status
+		`CREATE INDEX idx_debit_card_status_card_id ON debit_card_status(card_id);`,
+		`CREATE INDEX idx_debit_card_status_user_id ON debit_card_status(user_id);`,
 
 		// user_greetings
 		`CREATE INDEX idx_user_greetings_user_id ON user_greetings(user_id);`,
