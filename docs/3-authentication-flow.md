@@ -1,10 +1,5 @@
 # Authentication Flow - Banking API
 
-## Authentication Overview Diagram
-![Authentication-Flow](secure-flow.png)
-
-## Authentication Flow Summary
-
 ### 🔐 Authentication Scenarios
 
 #### ✅ **Success Flows**
@@ -41,35 +36,12 @@
 
 ### 🛡️ Security Features
 
-- **PIN Lockout**: 3 failed attempts = 30-minute lockout
+- **PIN Lockout**: 3 failed attempts = lock
 - **Token Expiry**: Short-lived access tokens (15 min) for security
 - **Token Banning**: Immediate token invalidation capability
 - **Version Control**: Token versioning prevents replay attacks
-- **Rate Limiting**: Protection against brute force attacks
+- **Exponential Backoff Retry**: Protection against brute force attacks
 
-### 📊 Response Codes
-- `200 OK`: Successful authentication/refresh/access
-- `401 Unauthorized`: Invalid credentials, expired tokens, banned tokens
-- `423 Locked`: PIN temporarily locked due to failed attempts
-- `422 Unprocessable Entity`: Invalid request format
 
-## Key Components
-
-### 🏗️ **System Architecture**
-- **Client App**: Mobile/Web application
-- **Banking API**: Main API server (Fiber framework)
-- **Auth System**: Authentication service layer
-- **Database**: MySQL for persistent data
-- **Redis Cache**: Session storage and rate limiting
-
-### 🔑 **Token Management**
-- **Access Token**: 15-minute expiry for API access
-- **Refresh Token**: 24-hour expiry for token renewal
-- **Token Versioning**: Prevents old token reuse
-- **Ban System**: Immediate token invalidation
-
-### 🚨 **Security Mechanisms**
-- **PIN Authentication**: 6-digit PIN verification
-- **Attempt Limiting**: Max 3 failed attempts before lockout
-- **Token Validation**: Multi-layer token verification
-- **Session Management**: Secure session handling with Redis
+## Authentication Overview Diagram
+![Authentication-Flow](auth-sequendiagram.png)
