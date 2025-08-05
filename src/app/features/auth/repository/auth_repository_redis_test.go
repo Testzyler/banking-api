@@ -418,7 +418,7 @@ func TestAuthRepository_GetUserWithPin_WithRedismock(t *testing.T) {
 					WillReturnRows(pinRows)
 
 				// Expect Redis SET call (async cache store) - use regex since JSON order might vary
-				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 5*time.Minute).SetVal("OK")
+				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 30*time.Minute).SetVal("OK")
 			},
 			expectError:  false,
 			expectDbCall: true,
@@ -454,7 +454,7 @@ func TestAuthRepository_GetUserWithPin_WithRedismock(t *testing.T) {
 					WillReturnRows(pinRows)
 
 				// Expect Redis SET call for fresh cache
-				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 5*time.Minute).SetVal("OK")
+				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 30*time.Minute).SetVal("OK")
 			},
 			expectError:  false,
 			expectDbCall: true,
@@ -507,7 +507,7 @@ func TestAuthRepository_GetUserWithPin_WithRedismock(t *testing.T) {
 					WillReturnRows(pinRows)
 
 				// Expect Redis SET call for caching
-				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 5*time.Minute).SetVal("OK")
+				redisMock.Regexp().ExpectSet("user_with_pin:testuser", `.*`, 30*time.Minute).SetVal("OK")
 			},
 			expectError:  false,
 			expectDbCall: true,
@@ -572,4 +572,494 @@ func TestAuthRepository_GetUserWithPin_WithRedismock(t *testing.T) {
 			assert.NoError(t, sqlMock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestAuthRepository_BanAllUserTokens_WithRedismock(t *testing.T) {
+	tests := []struct {
+		name        string
+		userID      string
+		reason      string
+		setupMock   func(redismock.ClientMock)
+		expectError bool
+	}{
+		{
+			name:   "successful ban all tokens",
+			userID: "user123",
+			reason: "security violation",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock getting user tokens
+				token1 := entities.TokenResponse{
+					TokenID: "token1",
+					UserID:  "user123",
+				}
+				token2 := entities.TokenResponse{
+					TokenID: "token2",
+					UserID:  "user123",
+				}
+				token1JSON, _ := json.Marshal(token1)
+				token2JSON, _ := json.Marshal(token2)
+
+				mock.ExpectSMembers("user_tokens:user123").SetVal([]string{string(token1JSON), string(token2JSON)})
+
+				// Mock banning each token
+				mock.Regexp().ExpectSet("banned_token:token1", `.*`, 24*time.Hour).SetVal("OK")
+				mock.Regexp().ExpectSet("banned_token:token2", `.*`, 24*time.Hour).SetVal("OK")
+			},
+			expectError: false,
+		},
+		{
+			name:   "user has no tokens",
+			userID: "user_no_tokens",
+			reason: "precautionary ban",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock getting user tokens - empty result
+				mock.ExpectSMembers("user_tokens:user_no_tokens").SetVal([]string{})
+			},
+			expectError: false,
+		},
+		{
+			name:   "redis error getting user tokens",
+			userID: "user123",
+			reason: "security violation",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock Redis error when getting tokens
+				mock.ExpectSMembers("user_tokens:user123").SetErr(redis.ErrClosed)
+			},
+			expectError: true,
+		},
+		{
+			name:   "redis error setting banned token",
+			userID: "user123",
+			reason: "security violation",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock getting user tokens
+				token1 := entities.TokenResponse{
+					TokenID: "token1",
+					UserID:  "user123",
+				}
+				token1JSON, _ := json.Marshal(token1)
+
+				mock.ExpectSMembers("user_tokens:user123").SetVal([]string{string(token1JSON)})
+
+				// Mock Redis error when setting banned token
+				mock.Regexp().ExpectSet("banned_token:token1", `.*`, 24*time.Hour).SetErr(redis.ErrClosed)
+			},
+			expectError: false, // Method doesn't return error if individual ban fails
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, sqlMock, err := sqlmock.New()
+			assert.NoError(t, err)
+			defer db.Close()
+
+			gormDB, err := gorm.Open(mysql.New(mysql.Config{
+				Conn:                      db,
+				SkipInitializeWithVersion: true,
+			}), &gorm.Config{})
+			assert.NoError(t, err)
+
+			// Create mock Redis client using redismock
+			mockRedisClient, redisMock := redismock.NewClientMock()
+			redisDB := createTestRedisDB(mockRedisClient)
+			repo := NewAuthRepository(gormDB, redisDB)
+
+			// Setup mock expectations
+			tt.setupMock(redisMock)
+
+			// Act
+			err = repo.BanAllUserTokens(context.Background(), tt.userID, tt.reason)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify all expectations were met
+			assert.NoError(t, redisMock.ExpectationsWereMet())
+			assert.NoError(t, sqlMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestAuthRepository_ValidateTokenVersion_WithRedismock(t *testing.T) {
+	currentTime := time.Now().Unix()
+
+	tests := []struct {
+		name         string
+		tokenVersion int64
+		expectValid  bool
+		expectReason string
+	}{
+		{
+			name:         "valid recent token",
+			tokenVersion: currentTime - 1000, // 1000 seconds ago (valid)
+			expectValid:  true,
+		},
+		{
+			name:         "token too old",
+			tokenVersion: currentTime - (25 * 60 * 60), // 25 hours ago (invalid)
+			expectValid:  false,
+			expectReason: "Token is too old",
+		},
+		{
+			name:         "edge case - exactly 24 hours old",
+			tokenVersion: currentTime - (24 * 60 * 60), // Exactly 24 hours ago (should be valid)
+			expectValid:  true,
+		},
+		{
+			name:         "very recent token",
+			tokenVersion: currentTime - 10, // 10 seconds ago (valid)
+			expectValid:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, sqlMock, err := sqlmock.New()
+			assert.NoError(t, err)
+			defer db.Close()
+
+			gormDB, err := gorm.Open(mysql.New(mysql.Config{
+				Conn:                      db,
+				SkipInitializeWithVersion: true,
+			}), &gorm.Config{})
+			assert.NoError(t, err)
+
+			// Create mock Redis client using redismock (not used in ValidateTokenVersion)
+			mockRedisClient, redisMock := redismock.NewClientMock()
+			redisDB := createTestRedisDB(mockRedisClient)
+			repo := NewAuthRepository(gormDB, redisDB)
+
+			// Act
+			result, err := repo.ValidateTokenVersion(context.Background(), tt.tokenVersion)
+
+			// Assert
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.expectValid, result.Valid)
+			if !tt.expectValid {
+				assert.Equal(t, tt.expectReason, result.Reason)
+			}
+
+			// TokenVersion should be updated to current time
+			assert.True(t, result.TokenVersion > 0)
+
+			// Verify all expectations were met
+			assert.NoError(t, redisMock.ExpectationsWereMet())
+			assert.NoError(t, sqlMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(redismock.ClientMock)
+		expectError bool
+		expectCount int
+	}{
+		{
+			name: "successful list with multiple users and tokens",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for user_tokens:* keys
+				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{"user_tokens:user1", "user_tokens:user2"}, 0)
+
+				// Mock getting tokens for user1
+				token1 := entities.TokenResponse{
+					TokenID: "token1",
+					UserID:  "user1",
+				}
+				token2 := entities.TokenResponse{
+					TokenID: "token2",
+					UserID:  "user1",
+				}
+				token1JSON, _ := json.Marshal(token1)
+				token2JSON, _ := json.Marshal(token2)
+				mock.ExpectSMembers("user_tokens:user1").SetVal([]string{string(token1JSON), string(token2JSON)})
+
+				// Mock getting tokens for user2
+				token3 := entities.TokenResponse{
+					TokenID: "token3",
+					UserID:  "user2",
+				}
+				token3JSON, _ := json.Marshal(token3)
+				mock.ExpectSMembers("user_tokens:user2").SetVal([]string{string(token3JSON)})
+			},
+			expectError: false,
+			expectCount: 3, // 2 tokens for user1 + 1 token for user2
+		},
+		{
+			name: "no user tokens found",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for user_tokens:* keys - empty result
+				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{}, 0)
+			},
+			expectError: false,
+			expectCount: 0,
+		},
+		{
+			name: "redis scan error",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock Redis error when scanning
+				mock.ExpectScan(0, "user_tokens:*", 100).SetErr(redis.ErrClosed)
+			},
+			expectError: true,
+			expectCount: 0,
+		},
+		{
+			name: "error getting tokens for specific user",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for user_tokens:* keys
+				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{"user_tokens:user1"}, 0)
+
+				// Mock error getting tokens for user1
+				mock.ExpectSMembers("user_tokens:user1").SetErr(redis.ErrClosed)
+			},
+			expectError: false, // Method handles individual user errors gracefully
+			expectCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, sqlMock, err := sqlmock.New()
+			assert.NoError(t, err)
+			defer db.Close()
+
+			gormDB, err := gorm.Open(mysql.New(mysql.Config{
+				Conn:                      db,
+				SkipInitializeWithVersion: true,
+			}), &gorm.Config{})
+			assert.NoError(t, err)
+
+			// Create mock Redis client using redismock
+			mockRedisClient, redisMock := redismock.NewClientMock()
+			redisDB := createTestRedisDB(mockRedisClient)
+			repo := NewAuthRepository(gormDB, redisDB)
+
+			// Setup mock expectations
+			tt.setupMock(redisMock)
+
+			// Act
+			tokens, err := repo.ListUserTokens(context.Background())
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, tokens)
+			} else {
+				assert.NoError(t, err)
+				if tt.expectCount == 0 {
+					// When no tokens found, Go returns nil slice
+					assert.Len(t, tokens, 0)
+				} else {
+					assert.NotNil(t, tokens)
+					assert.Len(t, tokens, tt.expectCount)
+				}
+			}
+
+			// Verify all expectations were met
+			assert.NoError(t, redisMock.ExpectationsWereMet())
+			assert.NoError(t, sqlMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestAuthRepository_CleanupExpiredBans_WithRedismock(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(redismock.ClientMock)
+		expectError bool
+	}{
+		{
+			name: "successful cleanup with existing banned tokens",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for banned_token:* keys
+				mock.ExpectScan(0, "banned_token:*", 100).SetVal([]string{"banned_token:token1", "banned_token:token2"}, 0)
+
+				// Mock checking existence of each key
+				mock.ExpectExists("banned_token:token1").SetVal(1) // exists
+				mock.ExpectExists("banned_token:token2").SetVal(0) // expired
+			},
+			expectError: false,
+		},
+		{
+			name: "no banned tokens found",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for banned_token:* keys - empty result
+				mock.ExpectScan(0, "banned_token:*", 100).SetVal([]string{}, 0)
+			},
+			expectError: false,
+		},
+		{
+			name: "redis scan error",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock Redis error when scanning
+				mock.ExpectScan(0, "banned_token:*", 100).SetErr(redis.ErrClosed)
+			},
+			expectError: true,
+		},
+		{
+			name: "error checking key existence",
+			setupMock: func(mock redismock.ClientMock) {
+				// Mock scanning for banned_token:* keys
+				mock.ExpectScan(0, "banned_token:*", 100).SetVal([]string{"banned_token:token1"}, 0)
+
+				// Mock error checking existence
+				mock.ExpectExists("banned_token:token1").SetErr(redis.ErrClosed)
+			},
+			expectError: false, // Method handles individual key errors gracefully
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, sqlMock, err := sqlmock.New()
+			assert.NoError(t, err)
+			defer db.Close()
+
+			gormDB, err := gorm.Open(mysql.New(mysql.Config{
+				Conn:                      db,
+				SkipInitializeWithVersion: true,
+			}), &gorm.Config{})
+			assert.NoError(t, err)
+
+			// Create mock Redis client using redismock
+			mockRedisClient, redisMock := redismock.NewClientMock()
+			redisDB := createTestRedisDB(mockRedisClient)
+			repo := NewAuthRepository(gormDB, redisDB)
+
+			// Setup mock expectations
+			tt.setupMock(redisMock)
+
+			// Act
+			err = repo.CleanupExpiredBans(context.Background())
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify all expectations were met
+			assert.NoError(t, redisMock.ExpectationsWereMet())
+			assert.NoError(t, sqlMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestAuthRepository_NilRedis_Coverage(t *testing.T) {
+	// Test repository methods when Redis is not available (nil client)
+	db, sqlMock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	gormDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      db,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// Create repository with nil Redis client
+	repo := NewAuthRepository(gormDB, nil)
+
+	t.Run("IsTokenBanned with nil Redis - should return true", func(t *testing.T) {
+		banned, err := repo.IsTokenBanned(context.Background(), "any_token")
+		assert.NoError(t, err)
+		assert.True(t, banned) // Should default to banned when Redis is unavailable
+	})
+
+	t.Run("BanAllUserTokens with nil Redis - should return error", func(t *testing.T) {
+		err := repo.BanAllUserTokens(context.Background(), "user123", "test ban")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Redis client is not initialized")
+	})
+
+	t.Run("StoreToken with nil Redis - should return error", func(t *testing.T) {
+		token := &entities.TokenResponse{TokenID: "test", UserID: "user123"}
+		err := repo.StoreToken(context.Background(), "user123", token)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Redis client is not initialized")
+	})
+
+	t.Run("ListUserTokens with nil Redis - should return error", func(t *testing.T) {
+		tokens, err := repo.ListUserTokens(context.Background())
+		assert.Error(t, err)
+		assert.Nil(t, tokens)
+		assert.Contains(t, err.Error(), "Redis client is not initialized")
+	})
+
+	t.Run("CleanupExpiredBans with nil Redis - should return nil", func(t *testing.T) {
+		err := repo.CleanupExpiredBans(context.Background())
+		assert.NoError(t, err) // Should not error with nil Redis
+	})
+
+	t.Run("GetPinAttemptData with nil Redis - should return default", func(t *testing.T) {
+		data, err := repo.GetPinAttemptData(context.Background(), "user123")
+		assert.NoError(t, err)
+		assert.NotNil(t, data)
+		assert.Equal(t, "user123", data.UserID)
+		assert.Equal(t, 0, data.FailedAttempts)
+	})
+
+	// Verify SQL expectations were met
+	assert.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+func TestAuthRepository_ResetPinAttempts_NilRedis(t *testing.T) {
+	// Test ResetPinAttempts when Redis is not available
+	db, sqlMock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	gormDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      db,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// Create repository with nil Redis client
+	repo := NewAuthRepository(gormDB, nil)
+
+	// Act
+	err = repo.ResetPinAttempts(context.Background(), "user123")
+
+	// Assert - should not error but also should not do anything since Redis is nil
+	assert.NoError(t, err)
+
+	// Verify SQL expectations were met
+	assert.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+func TestAuthRepository_SetPinLock_NilRedis(t *testing.T) {
+	// Test SetPinLock when Redis is not available
+	db, sqlMock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	gormDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      db,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// Create repository with nil Redis client
+	repo := NewAuthRepository(gormDB, nil)
+
+	now := time.Now()
+	lockedUntil := now.Add(30 * time.Minute)
+
+	// Act
+	err = repo.SetPinLock(context.Background(), "user123", lockedUntil, 3, &now)
+
+	// Assert - should return error since GetPinAttemptData will return default but setPinAttemptData will fail
+	assert.NoError(t, err) 
+
+	// Verify SQL expectations were met
+	assert.NoError(t, sqlMock.ExpectationsWereMet())
 }

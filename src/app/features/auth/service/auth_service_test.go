@@ -883,3 +883,189 @@ func TestAuthService_VerifyPin_RepositoryErrors_During_FailedAttempts(t *testing
 		})
 	}
 }
+
+func TestAuthService_BanToken(t *testing.T) {
+	tests := []struct {
+		name          string
+		userID        string
+		mockSetup     func(*MockAuthRepository)
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:   "successful token ban",
+			userID: "user123",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by admin").Return(nil)
+			},
+			expectError: false,
+		},
+		{
+			name:   "empty userID",
+			userID: "",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				mockRepo.On("BanAllUserTokens", mock.Anything, "", "Manually banned by admin").Return(nil)
+			},
+			expectError: false, // Should still work with empty userID
+		},
+		{
+			name:   "repository error during ban",
+			userID: "user123",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by admin").Return(errors.New("redis connection failed"))
+			},
+			expectError:   true,
+			errorContains: "redis connection failed",
+		},
+		{
+			name:   "ban for user with no tokens",
+			userID: "user_no_tokens",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				// Repository should handle case where user has no tokens gracefully
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user_no_tokens", "Manually banned by admin").Return(nil)
+			},
+			expectError: false,
+		},
+		{
+			name:   "ban for non-existent user",
+			userID: "nonexistent_user",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				// Repository should handle non-existent user case
+				mockRepo.On("BanAllUserTokens", mock.Anything, "nonexistent_user", "Manually banned by admin").Return(nil)
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAuthRepository)
+			mockJwt := new(MockJwtService)
+
+			config := &config.Config{
+				Auth: &config.AuthConfig{
+					Pin: &config.PinConfig{
+						BaseDuration:    10 * time.Second,
+						LockThreshold:   3,
+						MaxLockDuration: 300 * time.Second,
+					},
+				},
+			}
+
+			service := NewAuthService(mockRepo, mockJwt, config)
+
+			// Setup mock expectations
+			tt.mockSetup(mockRepo)
+
+			// Act
+			ctx := context.Background()
+			err := service.BanToken(ctx, tt.userID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthService_ListTokens(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockSetup     func(*MockAuthRepository)
+		expectError   bool
+		expectTokens  int
+		errorContains string
+	}{
+		{
+			name: "successful token list",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				tokens := []entities.TokenResponse{
+					{
+						Token:        "token1",
+						UserID:       "user123",
+						TokenID:      "tokenid1",
+						TokenVersion: time.Now().Unix(),
+					},
+					{
+						Token:        "token2",
+						UserID:       "user456",
+						TokenID:      "tokenid2",
+						TokenVersion: time.Now().Unix(),
+					},
+				}
+				mockRepo.On("ListUserTokens", mock.Anything).Return(tokens, nil)
+			},
+			expectError:  false,
+			expectTokens: 2,
+		},
+		{
+			name: "empty token list",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				tokens := []entities.TokenResponse{}
+				mockRepo.On("ListUserTokens", mock.Anything).Return(tokens, nil)
+			},
+			expectError:  false,
+			expectTokens: 0,
+		},
+		{
+			name: "repository error",
+			mockSetup: func(mockRepo *MockAuthRepository) {
+				mockRepo.On("ListUserTokens", mock.Anything).Return(nil, errors.New("redis scan failed"))
+			},
+			expectError:   true,
+			expectTokens:  0,
+			errorContains: "redis scan failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAuthRepository)
+			mockJwt := new(MockJwtService)
+
+			config := &config.Config{
+				Auth: &config.AuthConfig{
+					Pin: &config.PinConfig{
+						BaseDuration:    10 * time.Second,
+						LockThreshold:   3,
+						MaxLockDuration: 300 * time.Second,
+					},
+				},
+			}
+
+			service := NewAuthService(mockRepo, mockJwt, config)
+
+			// Setup mock expectations
+			tt.mockSetup(mockRepo)
+
+			// Act
+			ctx := context.Background()
+			tokens, err := service.ListTokens(ctx)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, tokens)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, tokens)
+				assert.Len(t, tokens, tt.expectTokens)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}

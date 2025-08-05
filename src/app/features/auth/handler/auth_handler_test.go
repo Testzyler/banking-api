@@ -282,3 +282,383 @@ func TestAuthHandler_InvalidRequestBody(t *testing.T) {
 
 	mockService.AssertExpectations(t)
 }
+
+func TestAuthHandler_ListAllTokens(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockSetup      func(*MockAuthService)
+		expectedStatus int
+		expectSuccess  bool
+	}{
+		{
+			name: "successful token listing",
+			mockSetup: func(mockService *MockAuthService) {
+				tokens := []entities.TokenResponse{
+					{
+						Token:        "token1",
+						RefreshToken: "refresh1",
+						Expiry:       time.Now().Add(time.Hour),
+						UserID:       "user1",
+					},
+					{
+						Token:        "token2",
+						RefreshToken: "refresh2",
+						Expiry:       time.Now().Add(time.Hour),
+						UserID:       "user2",
+					},
+				}
+				mockService.On("ListTokens", mock.Anything).Return(tokens, nil)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectSuccess:  true,
+		},
+		{
+			name: "empty token list",
+			mockSetup: func(mockService *MockAuthService) {
+				tokens := []entities.TokenResponse{}
+				mockService.On("ListTokens", mock.Anything).Return(tokens, nil)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectSuccess:  true,
+		},
+		{
+			name: "service error during token listing",
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("ListTokens", mock.Anything).Return(nil, &response.ErrorResponse{
+					HttpStatusCode: fiber.StatusInternalServerError,
+					Code:           response.ErrCodeInternalServer,
+					Message:        "Database connection failed",
+				})
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectSuccess:  false,
+		},
+		{
+			name: "generic error from service",
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("ListTokens", mock.Anything).Return(nil, errors.New("unexpected error"))
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectSuccess:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			app := setupTestApp()
+			mockService := new(MockAuthService)
+
+			// Create handler
+			handler := &authHandler{service: mockService}
+			app.Get("/auth/tokens", handler.ListAllTokens)
+
+			// Setup mock expectations
+			tt.mockSetup(mockService)
+
+			// Create request
+			req := httptest.NewRequest(http.MethodGet, "/auth/tokens", nil)
+
+			// Act
+			resp, err := app.Test(req)
+			assert.NoError(t, err)
+
+			// Assert
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			// Verify mock expectations
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthHandler_BanAllUserTokens(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    interface{}
+		mockSetup      func(*MockAuthService)
+		expectedStatus int
+		expectSuccess  bool
+	}{
+		{
+			name: "successful token ban",
+			requestBody: entities.BanTokensRequest{
+				UserID: "user123",
+			},
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("BanToken", mock.Anything, "user123").Return(nil)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectSuccess:  true,
+		},
+		{
+			name: "empty userID",
+			requestBody: entities.BanTokensRequest{
+				UserID: "",
+			},
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("BanToken", mock.Anything, "").Return(nil)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectSuccess:  true,
+		},
+		{
+			name: "service error - user not found",
+			requestBody: entities.BanTokensRequest{
+				UserID: "nonexistent",
+			},
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("BanToken", mock.Anything, "nonexistent").Return(&response.ErrorResponse{
+					HttpStatusCode: fiber.StatusNotFound,
+					Code:           response.ErrCodeNotFound,
+					Message:        "User not found",
+				})
+			},
+			expectedStatus: fiber.StatusNotFound,
+			expectSuccess:  false,
+		},
+		{
+			name: "generic service error",
+			requestBody: entities.BanTokensRequest{
+				UserID: "user123",
+			},
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("BanToken", mock.Anything, "user123").Return(errors.New("database error"))
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectSuccess:  false,
+		},
+		{
+			name:        "invalid JSON request body",
+			requestBody: "invalid json",
+			mockSetup: func(mockService *MockAuthService) {
+				// No mock calls expected for invalid JSON
+			},
+			expectedStatus: fiber.StatusBadRequest,
+			expectSuccess:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			app := setupTestApp()
+			mockService := new(MockAuthService)
+
+			// Create handler
+			handler := &authHandler{service: mockService}
+			app.Post("/auth/ban-tokens", handler.BanAllUserTokens)
+
+			// Setup mock expectations
+			tt.mockSetup(mockService)
+
+			// Create request
+			var body []byte
+			var err error
+			if tt.requestBody != nil {
+				if str, ok := tt.requestBody.(string); ok {
+					body = []byte(str) // For invalid JSON test
+				} else {
+					body, err = json.Marshal(tt.requestBody)
+					assert.NoError(t, err)
+				}
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/auth/ban-tokens", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Act
+			resp, err := app.Test(req)
+			assert.NoError(t, err)
+
+			// Assert
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			// Verify mock expectations
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthHandler_RefreshToken_AdvancedCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    interface{}
+		contentType    string
+		mockSetup      func(*MockAuthService)
+		expectedStatus int
+	}{
+		{
+			name: "missing content-type header",
+			requestBody: entities.RefreshTokenRequest{
+				RefreshToken: "valid_token",
+			},
+			contentType: "", // No content-type
+			mockSetup: func(mockService *MockAuthService) {
+				// No mock calls expected
+			},
+			expectedStatus: fiber.StatusBadRequest,
+		},
+		{
+			name:        "empty request body",
+			requestBody: nil,
+			contentType: "application/json",
+			mockSetup: func(mockService *MockAuthService) {
+				// No mock calls expected
+			},
+			expectedStatus: fiber.StatusBadRequest,
+		},
+		{
+			name: "empty refresh token",
+			requestBody: entities.RefreshTokenRequest{
+				RefreshToken: "",
+			},
+			contentType: "application/json",
+			mockSetup: func(mockService *MockAuthService) {
+				mockService.On("RefreshToken", "").Return(nil, errors.New("empty token"))
+			},
+			expectedStatus: fiber.StatusUnauthorized,
+		},
+		{
+			name:        "malformed JSON",
+			requestBody: `{"refresh_token": "token", "extra_field":}`, // Invalid JSON
+			contentType: "application/json",
+			mockSetup: func(mockService *MockAuthService) {
+				// No mock calls expected
+			},
+			expectedStatus: fiber.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			app := setupTestApp()
+			mockService := new(MockAuthService)
+
+			// Create handler
+			handler := &authHandler{service: mockService}
+			app.Post("/auth/refresh", handler.RefreshToken)
+
+			// Setup mock expectations
+			tt.mockSetup(mockService)
+
+			// Create request
+			var body []byte
+			var err error
+			if tt.requestBody != nil {
+				if str, ok := tt.requestBody.(string); ok {
+					body = []byte(str) // For malformed JSON test
+				} else {
+					body, err = json.Marshal(tt.requestBody)
+					assert.NoError(t, err)
+				}
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewBuffer(body))
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+
+			// Act
+			resp, err := app.Test(req)
+			assert.NoError(t, err)
+
+			// Assert
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			// Verify mock expectations
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthHandler_HTTPMethodValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		endpoint       string
+		expectedStatus int
+	}{
+		// VerifyPin should only accept POST
+		{
+			name:           "VerifyPin with GET method",
+			method:         http.MethodGet,
+			endpoint:       "/auth/verify-pin",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "VerifyPin with PUT method",
+			method:         http.MethodPut,
+			endpoint:       "/auth/verify-pin",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		// RefreshToken should only accept POST
+		{
+			name:           "RefreshToken with GET method",
+			method:         http.MethodGet,
+			endpoint:       "/auth/refresh",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "RefreshToken with DELETE method",
+			method:         http.MethodDelete,
+			endpoint:       "/auth/refresh",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		// ListAllTokens should only accept GET
+		{
+			name:           "ListAllTokens with POST method",
+			method:         http.MethodPost,
+			endpoint:       "/auth/tokens",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "ListAllTokens with PUT method",
+			method:         http.MethodPut,
+			endpoint:       "/auth/tokens",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		// BanAllUserTokens should only accept POST
+		{
+			name:           "BanAllUserTokens with GET method",
+			method:         http.MethodGet,
+			endpoint:       "/auth/ban-tokens",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "BanAllUserTokens with DELETE method",
+			method:         http.MethodDelete,
+			endpoint:       "/auth/ban-tokens",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			app := setupTestApp()
+			mockService := new(MockAuthService)
+
+			// Create handler with all routes
+			handler := &authHandler{service: mockService}
+			app.Post("/auth/verify-pin", handler.VerifyPin)
+			app.Post("/auth/refresh", handler.RefreshToken)
+			app.Get("/auth/tokens", handler.ListAllTokens)
+			app.Post("/auth/ban-tokens", handler.BanAllUserTokens)
+
+			// Create request with wrong method
+			req := httptest.NewRequest(tt.method, tt.endpoint, nil)
+
+			// Act
+			resp, err := app.Test(req)
+			assert.NoError(t, err)
+
+			// Assert
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			// Verify no mock calls were made
+			mockService.AssertExpectations(t)
+		})
+	}
+}

@@ -64,13 +64,6 @@ func (r *authRepository) userTokensKey(userID string) string {
 	return fmt.Sprintf("user_tokens:%s", userID)
 }
 
-func (r *authRepository) invalidateUserCache(username string) {
-	if r.redisClient == nil {
-		return
-	}
-	cacheKey := fmt.Sprintf("user_with_pin:%s", username)
-	_ = r.redisClient.Del(context.Background(), cacheKey).Err()
-}
 
 func (r *authRepository) invalidateUserCacheByID(userID string) {
 	if r.redisClient == nil {
@@ -111,8 +104,7 @@ func (r *authRepository) GetUserWithPin(username string) (*models.User, error) {
 			cacheKey := fmt.Sprintf("user_with_pin:%s", username)
 			userJSON, err := json.Marshal(user)
 			if err == nil {
-				// Cache for 5 minutes
-				_ = r.redisClient.Set(ctx, cacheKey, string(userJSON), 5*time.Minute).Err()
+				_ = r.redisClient.Set(ctx, cacheKey, string(userJSON), 30*time.Minute).Err()
 			}
 		}()
 	}
@@ -313,7 +305,7 @@ func (r *authRepository) banToken(ctx context.Context, userID, tokenID, reason s
 		Reason:       reason,
 		TokenVersion: time.Now().Unix(), // Use current timestamp as version
 	}
-
+	r.invalidateUserCacheByID(userID)
 	bannedKey := r.bannedTokenKey(tokenID)
 	bannedData, err := json.Marshal(bannedToken)
 	if err != nil {

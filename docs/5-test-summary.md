@@ -3,12 +3,14 @@
 
 | Package | Coverage |
 |---------|----------|
-| Auth Handler | ![Coverage](https://img.shields.io/badge/coverage-47.2%25-red.svg) |
-| Auth Repository | ![Coverage](https://img.shields.io/badge/coverage-32.9%25-red.svg) |
-| Auth Service | ![Coverage](https://img.shields.io/badge/coverage-79.4%25-yellow.svg) |
-| JWT Service | ![Coverage](https://img.shields.io/badge/coverage-65.3%25-yellow.svg) |
-| Home Repository | ![Coverage](https://img.shields.io/badge/coverage-11.4%25-red.svg) |
-| Home Service | ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg) |
+| Auth Handler | ![Coverage](https://img.shields.io/badge/coverage-83.3%25-brightgreen.svg)
+| Auth Repository | ![Coverage](https://img.shields.io/badge/coverage-79.2%25-yellow.svg)
+| Auth Service | ![Coverage](https://img.shields.io/badge/coverage-92.0%25-brightgreen.svg)
+| JWT Service | ![Coverage](https://img.shields.io/badge/coverage-89.1%25-brightgreen.svg)
+| Home Handler | ![Coverage](https://img.shields.io/badge/coverage-76.9%25-yellow.svg)
+| Home Repository | ![Coverage](https://img.shields.io/badge/coverage-70.5%25-yellow.svg)
+| Home Service | ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)
+| Validators | ![Coverage](https://img.shields.io/badge/coverage-75.8%25-yellow.svg)
 
 
 ## Stress Test Scenarios

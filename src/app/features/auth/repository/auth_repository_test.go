@@ -269,3 +269,106 @@ func TestAuthRepository_UpdateUserPinLockedUntil(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthRepository_UpdateUserPinLastAttemptAt(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name          string
+		userID        string
+		lastAttemptAt *time.Time
+		mockSetup     func(sqlmock.Sqlmock)
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "successful update with time value",
+			userID:        "user123",
+			lastAttemptAt: &now,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("UPDATE `user_pins` SET `last_pin_attempt_at`=\\? WHERE user_id = \\?").
+					WithArgs(now, "user123").
+					WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name:          "successful update with nil value",
+			userID:        "user123",
+			lastAttemptAt: nil,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("UPDATE `user_pins` SET `last_pin_attempt_at`=\\? WHERE user_id = \\?").
+					WithArgs(nil, "user123").
+					WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectCommit()
+			},
+			expectError: false,
+		},
+		{
+			name:          "database error during update",
+			userID:        "user123",
+			lastAttemptAt: &now,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("UPDATE `user_pins` SET `last_pin_attempt_at`=\\? WHERE user_id = \\?").
+					WithArgs(now, "user123").
+					WillReturnError(gorm.ErrInvalidDB)
+				mock.ExpectRollback()
+			},
+			expectError:   true,
+			errorContains: "invalid db",
+		},
+		{
+			name:          "empty userID",
+			userID:        "",
+			lastAttemptAt: &now,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("UPDATE `user_pins` SET `last_pin_attempt_at`=\\? WHERE user_id = \\?").
+					WithArgs(now, "").
+					WillReturnResult(sqlmock.NewResult(1, 0)) // No rows affected
+				mock.ExpectCommit()
+			},
+			expectError: false, // GORM doesn't error on 0 rows affected
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock database
+			db, mock, err := sqlmock.New()
+			assert.NoError(t, err)
+			defer db.Close()
+
+			gormDB, err := gorm.Open(mysql.New(mysql.Config{
+				Conn:                      db,
+				SkipInitializeWithVersion: true,
+			}), &gorm.Config{})
+			assert.NoError(t, err)
+
+			repo := NewAuthRepository(gormDB, nil)
+
+			// Setup mock expectations
+			tt.mockSetup(mock)
+
+			// Act
+			err = repo.UpdateUserPinLastAttemptAt(tt.userID, tt.lastAttemptAt)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify all expectations were met
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

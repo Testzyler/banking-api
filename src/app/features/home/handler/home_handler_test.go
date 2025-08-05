@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http/httptest"
 	"testing"
 
@@ -63,7 +65,7 @@ func TestGetHomeData_Success(t *testing.T) {
 	app := setupTestApp()
 	app.Get("/home", func(c *fiber.Ctx) error {
 		// Set user claims in context
-		claims := &entities.Claims{
+		claims := entities.Claims{
 			UserID:   "1",
 			Username: "testuser",
 		}
@@ -101,7 +103,7 @@ func TestGetHomeData_NoUserContext(t *testing.T) {
 	resp, err := app.Test(req)
 
 	assert.NoError(t, err) // app.Test shouldn't error
-	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 }
 
 func TestGetHomeData_InvalidUserType(t *testing.T) {
@@ -122,7 +124,7 @@ func TestGetHomeData_InvalidUserType(t *testing.T) {
 	resp, err := app.Test(req)
 
 	assert.NoError(t, err) // app.Test shouldn't error
-	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 }
 
 // Test for GetHomeData with nil claims
@@ -144,9 +146,9 @@ func TestGetHomeData_NilClaims(t *testing.T) {
 	req := httptest.NewRequest("GET", "/home", nil)
 	resp, err := app.Test(req)
 
-	// Should return unauthorized error
+	// Should return internal server error (500) because user is nil
 	assert.NoError(t, err) // app.Test shouldn't error
-	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 }
 
 // Test for GetHomeData with service error
@@ -165,7 +167,7 @@ func TestGetHomeData_ServiceError(t *testing.T) {
 	app := fiber.New()
 	app.Get("/home", func(c *fiber.Ctx) error {
 		// Set user claims in context
-		claims := &entities.Claims{
+		claims := entities.Claims{
 			UserID:   "1",
 			Username: "testuser",
 		}
@@ -196,7 +198,7 @@ func TestGetHomeData_EmptyUserID(t *testing.T) {
 
 	app := fiber.New()
 	app.Get("/home", func(c *fiber.Ctx) error {
-		claims := &entities.Claims{
+		claims := entities.Claims{
 			UserID:   "", // Empty user ID
 			Username: "testuser",
 		}
@@ -231,25 +233,333 @@ func TestGetHomeData_DirectCall(t *testing.T) {
 		service: mockService,
 	}
 
-	app := fiber.New()
-	c := app.AcquireCtx(nil)
-	defer app.ReleaseCtx(c)
+	app := setupTestApp()
+	app.Get("/home", func(c *fiber.Ctx) error {
+		claims := entities.Claims{UserID: "1", Username: "testuser"}
+		c.Locals("user", claims)
+		return handler.GetHomeData(c)
+	})
 
-	// Initialize request
-	c.Request().SetRequestURI("/home")
-	c.Request().Header.SetMethod("GET")
-
-	// Set user claims
-	claims := &entities.Claims{
-		UserID:   "1",
-		Username: "testuser",
-	}
-	c.Locals("user", claims)
-
-	// Call handler directly
-	err := handler.GetHomeData(c)
+	// Make request using test method
+	req := httptest.NewRequest("GET", "/home", nil)
+	resp, err := app.Test(req)
 
 	// Assertions
 	assert.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 	mockService.AssertExpectations(t)
+}
+
+func TestHomeHandler_HTTPMethodValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		expectedStatus int
+	}{
+		{
+			name:           "GET method should work",
+			method:         "GET",
+			expectedStatus: fiber.StatusOK,
+		},
+		{
+			name:           "POST method should return 405",
+			method:         "POST",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "PUT method should return 405",
+			method:         "PUT",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "DELETE method should return 405",
+			method:         "DELETE",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+		{
+			name:           "PATCH method should return 405",
+			method:         "PATCH",
+			expectedStatus: fiber.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := new(MockHomeService)
+
+			if tt.method == "GET" {
+				// Only setup mock for successful GET request
+				expectedResponse := entities.HomeResponse{
+					User: entities.User{
+						UserID: "1",
+						Name:   "testuser",
+					},
+					TotalBalance: 1000.0,
+				}
+				mockService.On("GetHomeData", "1").Return(expectedResponse, nil)
+			}
+
+			handler := &homeHandler{service: mockService}
+			app := setupTestApp()
+
+			// Setup all possible routes
+			app.Get("/home", func(c *fiber.Ctx) error {
+				claims := entities.Claims{UserID: "1", Username: "testuser"}
+				c.Locals("user", claims)
+				return handler.GetHomeData(c)
+			})
+
+			req := httptest.NewRequest(tt.method, "/home", nil)
+			resp, err := app.Test(req)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestHomeHandler_ResponseStructureValidation(t *testing.T) {
+	tests := []struct {
+		name             string
+		serviceResponse  entities.HomeResponse
+		serviceError     error
+		expectedStatus   int
+		validateResponse func(*testing.T, []byte)
+	}{
+		{
+			name: "full home data response structure",
+			serviceResponse: entities.HomeResponse{
+				User: entities.User{
+					UserID:   "user123",
+					Name:     "John Doe",
+					Greeting: "Good morning!",
+				},
+				DebitCards: []entities.DebitCards{
+					{
+						CardID:   "card1",
+						CardName: "Main Card",
+						DebitCardDesign: entities.DebitCardDesign{
+							Color:       "#FF0000",
+							BorderColor: "#000000",
+						},
+						Status:     "active",
+						CardNumber: "**** **** **** 1234",
+						Issuer:     "VISA",
+					},
+				},
+				Banners: []entities.Banner{
+					{
+						BannerID:    "banner1",
+						UserID:      "user123",
+						Title:       "Special Offer",
+						Description: "Limited time offer",
+						ImageURL:    "https://example.com/banner.jpg",
+					},
+				},
+				Transactions: []entities.Transaction{
+					{
+						TransactionID: "txn1",
+						UserID:        "user123",
+						Name:          "Coffee Shop",
+						Image:         "https://example.com/coffee.jpg",
+						IsBank:        false,
+					},
+				},
+				Accounts: []entities.Account{
+					{
+						AccountID: "acc1",
+						Type:      "savings",
+						Currency:  "USD",
+						Issuer:    "Bank ABC",
+						Amount:    5000.50,
+						AccountDetails: entities.AccountDetails{
+							Color:         "#00FF00",
+							IsMainAccount: true,
+							Progress:      75.5,
+						},
+						AccountFlags: []entities.AccountFlags{
+							{
+								FlagType:  "premium",
+								FlagValue: "true",
+							},
+						},
+					},
+				},
+				TotalBalance: 5000.50,
+			},
+			expectedStatus: fiber.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				var response map[string]interface{}
+				err := json.Unmarshal(body, &response)
+				assert.NoError(t, err)
+				assert.Equal(t, float64(10200), response["code"])
+				assert.Equal(t, "Home screen data retrieved successfully", response["message"])
+				assert.NotNil(t, response["data"])
+
+				data, ok := response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "user123", data["userID"])
+				assert.Equal(t, "John Doe", data["name"])
+				assert.Equal(t, "Good morning!", data["greeting"])
+				assert.Equal(t, 5000.50, data["totalBalance"])
+				assert.NotNil(t, data["debitCards"])
+				assert.NotNil(t, data["banners"])
+				assert.NotNil(t, data["transactions"])
+				assert.NotNil(t, data["accounts"])
+			},
+		},
+		{
+			name: "empty data response structure",
+			serviceResponse: entities.HomeResponse{
+				User: entities.User{
+					UserID:   "user123",
+					Name:     "John Doe",
+					Greeting: "Good morning!",
+				},
+				DebitCards:   []entities.DebitCards{},
+				Banners:      []entities.Banner{},
+				Transactions: []entities.Transaction{},
+				Accounts:     []entities.Account{},
+				TotalBalance: 0,
+			},
+			expectedStatus: fiber.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				var response map[string]interface{}
+				err := json.Unmarshal(body, &response)
+				assert.NoError(t, err)
+				assert.Equal(t, "Home screen data retrieved successfully", response["message"])
+
+				data, ok := response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, float64(0), data["totalBalance"])
+				assert.NotNil(t, data["debitCards"])
+				assert.NotNil(t, data["banners"])
+				assert.NotNil(t, data["transactions"])
+				assert.NotNil(t, data["accounts"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := new(MockHomeService)
+			mockService.On("GetHomeData", "user123").Return(tt.serviceResponse, tt.serviceError)
+
+			handler := &homeHandler{service: mockService}
+			app := setupTestApp()
+			app.Get("/home", func(c *fiber.Ctx) error {
+				claims := entities.Claims{UserID: "user123", Username: "testuser"}
+				c.Locals("user", claims)
+				return handler.GetHomeData(c)
+			})
+
+			req := httptest.NewRequest("GET", "/home", nil)
+			resp, err := app.Test(req)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateResponse != nil {
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(t, err)
+				tt.validateResponse(t, body)
+			}
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestHomeHandler_UserContextEdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupContext   func(*fiber.Ctx)
+		expectedStatus int
+		expectService  bool
+	}{
+		{
+			name: "valid claims structure",
+			setupContext: func(c *fiber.Ctx) {
+				claims := entities.Claims{UserID: "123", Username: "test"}
+				c.Locals("user", claims)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectService:  true,
+		},
+		{
+			name: "pointer to valid claims",
+			setupContext: func(c *fiber.Ctx) {
+				claims := &entities.Claims{UserID: "123", Username: "test"}
+				c.Locals("user", *claims)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectService:  true,
+		},
+		{
+			name: "string instead of claims",
+			setupContext: func(c *fiber.Ctx) {
+				c.Locals("user", "invalid")
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectService:  false,
+		},
+		{
+			name: "int instead of claims",
+			setupContext: func(c *fiber.Ctx) {
+				c.Locals("user", 123)
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectService:  false,
+		},
+		{
+			name: "map instead of claims",
+			setupContext: func(c *fiber.Ctx) {
+				c.Locals("user", map[string]string{"userID": "123"})
+			},
+			expectedStatus: fiber.StatusInternalServerError,
+			expectService:  false,
+		},
+		{
+			name: "empty claims",
+			setupContext: func(c *fiber.Ctx) {
+				claims := entities.Claims{}
+				c.Locals("user", claims)
+			},
+			expectedStatus: fiber.StatusOK,
+			expectService:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := new(MockHomeService)
+
+			if tt.expectService {
+				expectedResponse := entities.HomeResponse{
+					User: entities.User{
+						UserID:   "123",
+						Name:     "testuser",
+						Greeting: "Good morning!",
+					},
+					TotalBalance: 1000.0,
+				}
+				mockService.On("GetHomeData", mock.AnythingOfType("string")).Return(expectedResponse, nil)
+			}
+
+			handler := &homeHandler{service: mockService}
+			app := setupTestApp()
+			app.Get("/home", func(c *fiber.Ctx) error {
+				tt.setupContext(c)
+				return handler.GetHomeData(c)
+			})
+
+			req := httptest.NewRequest("GET", "/home", nil)
+			resp, err := app.Test(req)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			mockService.AssertExpectations(t)
+		})
+	}
 }

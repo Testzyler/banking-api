@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -503,4 +504,205 @@ func TestJwtService_Integration(t *testing.T) {
 	originalAccessClaims, err := service.ValidateAccessToken(originalTokens.Token)
 	assert.NoError(t, err)
 	assert.Equal(t, "user123", originalAccessClaims.UserID)
+}
+
+func TestJwtService_ValidateTokenWithBanCheck(t *testing.T) {
+	tests := []struct {
+		name         string
+		tokenString  string
+		mockSetup    func(*MockAuthRepositoryJWT, *config.Config) (string, *entities.Claims)
+		expectError  bool
+		expectValid  bool
+		expectReason string
+		errorType    string
+	}{
+		{
+			name: "valid token not banned",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Generate a valid token first
+				service := NewJwtService(config, mockRepo)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				// Mock ban check - not banned
+				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+
+				// Mock token version validation - valid
+				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
+					Valid:        true,
+					TokenVersion: time.Now().Unix(),
+				}, nil)
+
+				// Get the claims from token to verify later
+				claims, _ := service.ValidateAccessToken(tokenResponse.Token)
+				return tokenResponse.Token, claims
+			},
+			expectError:  false,
+			expectValid:  true,
+			expectReason: "",
+		},
+		{
+			name:        "invalid token string",
+			tokenString: "invalid.token.string",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				return "invalid.token.string", nil
+			},
+			expectError:  true,
+			expectValid:  false,
+			expectReason: "invalid token",
+		},
+		{
+			name:        "empty token string",
+			tokenString: "",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				return "", nil
+			},
+			expectError:  true,
+			expectValid:  false,
+			expectReason: "invalid token",
+		},
+		{
+			name: "valid token but banned",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Generate a valid token first
+				service := NewJwtService(config, mockRepo)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				// Mock ban check - token is banned
+				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(true, nil)
+
+				claims, _ := service.ValidateAccessToken(tokenResponse.Token)
+				return tokenResponse.Token, claims
+			},
+			expectError:  true,
+			expectValid:  false,
+			expectReason: "token is banned",
+			errorType:    "TokenBannedError",
+		},
+		{
+			name: "valid token but version outdated",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Generate a valid token first
+				service := NewJwtService(config, mockRepo)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				// Mock ban check - not banned
+				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+
+				// Mock token version validation - outdated
+				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
+					Valid:        false,
+					Reason:       "Token is too old",
+					TokenVersion: time.Now().Unix(),
+				}, nil)
+
+				claims, _ := service.ValidateAccessToken(tokenResponse.Token)
+				return tokenResponse.Token, claims
+			},
+			expectError:  true,
+			expectValid:  false,
+			expectReason: "Token is too old",
+			errorType:    "TokenOutdatedError",
+		},
+		{
+			name: "auth repository not initialized",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Create service with nil repository
+				service := NewJwtService(config, nil)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				return tokenResponse.Token, nil
+			},
+			expectError:  false,
+			expectValid:  false,
+			expectReason: "Error: auth repository not initialized",
+		},
+		{
+			name: "ban check fails with error",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Generate a valid token first
+				service := NewJwtService(config, mockRepo)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				// Mock ban check with error
+				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, errors.New("redis connection failed"))
+
+				claims, _ := service.ValidateAccessToken(tokenResponse.Token)
+				return tokenResponse.Token, claims
+			},
+			expectError:  false, // Should not error, but should indicate ban check failed
+			expectValid:  true,  // Should default to valid when ban check fails
+			expectReason: "ban check failed",
+		},
+		{
+			name: "version check fails with error",
+			mockSetup: func(mockRepo *MockAuthRepositoryJWT, config *config.Config) (string, *entities.Claims) {
+				// Generate a valid token first
+				service := NewJwtService(config, mockRepo)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+
+				// Mock ban check - not banned
+				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+
+				// Mock token version validation with error
+				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(nil, errors.New("version check error"))
+
+				claims, _ := service.ValidateAccessToken(tokenResponse.Token)
+				return tokenResponse.Token, claims
+			},
+			expectError:  false, // Should not error, but should indicate version check failed
+			expectValid:  true,  // Should default to valid when version check fails
+			expectReason: "version check failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := createTestConfig()
+			mockRepo := createMockAuthRepo()
+
+			// Create service and get token from mock setup
+			service := NewJwtService(config, mockRepo)
+			var tokenString string
+			var expectedClaims *entities.Claims
+
+			if tt.name == "auth repository not initialized" {
+				// Special case for nil repository test
+				service = NewJwtService(config, nil)
+				tokenResponse, _ := service.GenerateTokens("user123", "testuser")
+				tokenString = tokenResponse.Token
+			} else {
+				tokenString, expectedClaims = tt.mockSetup(mockRepo, config)
+			}
+
+			if tt.tokenString != "" {
+				tokenString = tt.tokenString
+			}
+
+			// Act
+			result, err := service.ValidateTokenWithBanCheck(tokenString)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.expectValid, result.Valid)
+			assert.Equal(t, tt.expectReason, result.Reason)
+
+			if tt.expectValid && expectedClaims != nil && tt.expectReason == "" {
+				// Only check claims when validation is truly successful (no reason for fallback)
+				assert.Equal(t, expectedClaims.UserID, result.Claims.UserID)
+				assert.Equal(t, expectedClaims.Username, result.Claims.Username)
+				assert.Equal(t, expectedClaims.TokenID, result.Claims.TokenID)
+			}
+
+			// Verify all expectations were met (only if mockRepo was used)
+			if tt.name != "auth repository not initialized" {
+				mockRepo.AssertExpectations(t)
+			}
+		})
+	}
 }
