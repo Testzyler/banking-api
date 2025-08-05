@@ -30,3 +30,5 @@ src/database/seeds/*.sql
 
 # coverage.html
 # coverage.out
+
+docs/2-design-principles-th.md

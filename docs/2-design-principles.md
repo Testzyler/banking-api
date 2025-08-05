@@ -1,156 +1,125 @@
-# Banking API - หลักการและเหตุผลในการออกแบบระบบ
+# Banking API - Design Principles and System Architecture Rationale
 
-## 1. Architecture และ Design Patterns
+## 1. Architecture and Design Patterns
 
 ### 1.1 Clean Architecture
-**หลักการ:** ใช้ Clean Architecture เพื่อแยกความรับผิดชอบของแต่ละ layer อย่างชัดเจน
+**Principle:** Implement Clean Architecture to clearly separate responsibilities across different layers
 
-**เหตุผล:**
-- **Separation of Concerns**: แต่ละ layer มีหน้าที่เฉพาะ ทำให้ code มี maintainability สูง
-- **Testability**: สามารถทำ unit test ได้ง่าย โดยการ mock dependencies
-- **Flexibility**: สามารถเปลี่ยน database หรือ framework ได้โดยไม่กระทบ business logic
-- **Scalability**: เพิ่ม features ใหม่ได้ง่าย โดยไม่ส่งผลกระทบต่อ code เดิม
+**Rationale:**
+- **Separation of Concerns**: Each layer has specific responsibilities, resulting in high code maintainability
+- **Testability**: Easy to perform unit testing through dependency mocking
+- **Flexibility**: Ability to change database or framework without affecting business logic
+- **Scalability**: Easy to add new features without impacting existing code
 
 ### 1.2 Repository Pattern
-**หลักการ:** แยก data access logic ออกจาก business logic
+**Principle:** Separate data access logic from business logic
 
-**เหตุผล:**
-- **Database Independence**: เปลี่ยน database ได้โดยไม่แก้ business logic
-- **Testing**: Mock repository ได้ง่ายสำหรับ unit testing
-- **Consistency**: มี interface เดียวกันสำหรับการเข้าถึงข้อมูล
-- **Caching**: สามารถเพิ่ม caching layer ได้ใน repository
+**Rationale:**
+- **Database Independence**: Change database without modifying business logic
+- **Testing**: Easy repository mocking for unit testing
+- **Consistency**: Uniform interface for data access
+- **Caching**: Ability to add caching layer within repository
 
 ### 1.3 Dependency Injection
-**หลักการ:** Inject dependencies ผ่าน constructor
+**Principle:** Inject dependencies through constructor
 
-**เหตุผล:**
-- **Loose Coupling**: Components ไม่ depend กัน
-- **Easy Testing**: สามารถ inject mock objects สำหรับ testing
-- **Configuration Flexibility**: เปลี่ยน implementation ได้ง่าย
+**Rationale:**
+- **Loose Coupling**: Components don't depend on each other
+- **Easy Testing**: Ability to inject mock objects for testing
+- **Configuration Flexibility**: Easy to change implementations
 
-## 2. Authentication และ Security
+## 2. Authentication and Security
 
 ### 2.1 JWT Token Strategy
-**หลักการ:** ใช้ JWT tokens แยกเป็น Access Token และ Refresh Token
+**Principle:** Use JWT tokens separated into Access Token and Refresh Token
 
-**เหตุผล:**
-- **Scalability**: Support horizontal scaling ได้ดี
-- **Security**: Access token มี expiry สั้น (15 นาที) ลด risk จาก token theft
-- **User Experience**: Refresh token ทำให้ user ไม่ต้อง login บ่อย
+**Rationale:**
+- **Scalability**: Excellent support for horizontal scaling
+- **Security**: Short-lived access tokens (15 minutes) reduce risk from token theft
+- **User Experience**: Refresh tokens prevent frequent user logins
 
 ### 2.2 Token Versioning System
-**หลักการ:** ใช้ timestamp เป็น token version เพื่อ invalidate tokens เก่า
+**Principle:** Use timestamp as token version to invalidate old tokens
 
-**เหตุผล:**
-- **Mass Token Revocation**: สามารถ revoke tokens ทั้งหมดของ user ได้ในครั้งเดียว
-- **Security Incident Response**: เมื่อมี security breach สามารถ invalidate tokens ได้ทันที
-- **Account Security**: เมื่อ user เปลี่ยน pin / password หรือสงสัยว่า account ถูก hijack
+**Rationale:**
+- **Mass Token Revocation**: Ability to revoke all user tokens at once
+- **Security Incident Response**: Immediate token invalidation during security breaches
+- **Account Security**: Token invalidation when user changes PIN/password or suspects account hijacking
 
 ### 2.3 Token Banning System
-**หลักการ:** เก็บ banned token IDs ใน Redis cache
+**Principle:** Store banned token IDs in Redis cache
 
-**เหตุผล:**
-- **Immediate Effect**: Token ถูก ban ทันที ไม่ต้องรอ expiry
-- **Performance**: Redis มีความเร็วสูงในการ check ban status
+**Rationale:**
+- **Immediate Effect**: Tokens are banned instantly without waiting for expiry
+- **Performance**: Redis provides high-speed ban status checking
 
 ### 2.4 Failed Attempt Protection
-**หลักการ:** ล็อค PIN หลังจาก failed attempts 3 ครั้ง
+**Principle:** Lock PIN after 3 failed attempts
 
-**เหตุผล:**
-- **Brute Force Protection**: ป้องกันการทดลอง PIN แบบ brute force
-- **Account Security**: ปกป้อง user account จากการเข้าถึงโดยไม่ได้รับอนุญาต
-
+**Rationale:**
+- **Brute Force Protection**: Prevent brute force PIN attacks
+- **Account Security**: Protect user accounts from unauthorized access
 
 ## 3. Database
 
 ### 3.1 GORM ORM Framework
-**หลักการ:** ใช้ GORM เป็น Object-Relational Mapping (ORM) framework
+**Principle:** Use GORM as Object-Relational Mapping (ORM) framework
 
-**เหตุผล:**
-- **Type Safety**: รองรับ Go's type system ช่วยลด runtime errors
-- **Developer Productivity**: ลดเวลาการเขียน SQL queries แบบ manual
-- **Database Migration**: มี built-in migration system ที่ใช้งานง่าย
-- **Association Handling**: จัดการ relationships ระหว่าง models ได้อย่างมีประสิทธิภาพ
-- **Connection Pooling**: มี connection pooling built-in
-- **Database Agnostic**: สามารถเปลี่ยน database ได้ง่าย (MySQL, PostgreSQL, SQLite)
-- **Active Community**: มี community support และ documentation ที่ดี
+**Rationale:**
+- **Type Safety**: Supports Go's type system, reducing runtime errors
+- **Developer Productivity**: Reduces time spent writing manual SQL queries
+- **Database Migration**: Built-in migration system that's easy to use
+- **Association Handling**: Efficient management of relationships between models
+- **Connection Pooling**: Built-in connection pooling
+- **Database Agnostic**: Easy database switching (MySQL, PostgreSQL, SQLite)
+- **Active Community**: Strong community support and excellent documentation
 
-### 3.3 Redis สำหรับ Caching
-**หลักการ:** ใช้ Redis เป็น cache layer
+### 3.3 Redis for Caching
+**Principle:** Use Redis as cache layer
 
-**เหตุผล:**
-- **Performance**: ความเร็วสูงมากสำหรับ in-memory operations
-- **Session Storage**: เหมาะกับการเก็บ temporary data เช่น login sessions
-- **Token Management**: เหมาะกับการเก็บ banned tokens และ PIN lockout data
-- **Expiration**: รองรับ automatic expiration ของ data
-- **Data Structures**: รองรับ data structures ที่หลากหลาย
+**Rationale:**
+- **Performance**: Extremely high speed for in-memory operations
+- **Session Storage**: Ideal for storing temporary data like login sessions
+- **Token Management**: Perfect for storing banned tokens and PIN lockout data
+- **Expiration**: Supports automatic data expiration
+- **Data Structures**: Supports diverse data structures
 
 ### 3.4 Database Migration System
-**หลักการ:** ใช้ custom migration system ร่วมกับ GORM
+**Principle:** Use custom migration system with GORM
 
-**เหตุผล:**
-- **Version Control**: Track การเปลี่ยนแปลง database schema
-- **Deployment Safety**: Rollback ได้เมื่อมีปัญหา
-- **Team Collaboration**: หลายคนสามารถทำงานร่วมกันได้
-- **Environment Consistency**: Database schema เหมือนกันทุก environment
-- **Data Seeding**: สามารถ seed ข้อมูลเริ่มต้นได้อย่างมีระบบ
+**Rationale:**
+- **Version Control**: Track database schema changes
+- **Deployment Safety**: Rollback capability when issues occur
+- **Team Collaboration**: Multiple developers can work together effectively
+- **Environment Consistency**: Identical database schema across all environments
+- **Data Seeding**: Systematic initial data seeding capability
 
-## 4. Performance และ Scalability
+## 4. Performance and Scalability
 
 ### 4.1 Fiber Framework
-**หลักการ:** ใช้ Fiber เป็น web framework
+**Principle:** Use Fiber as web framework
 
-**เหตุผล:**
-- **High Performance**: มี performance สูงเนื่องจากใช้ fasthttp
-- **Memory Efficient**: ใช้ memory น้อยกว่า frameworks อื่น
-- **Built-in Features**: มี middleware และ utilities ที่จำเป็นครบ
+**Rationale:**
+- **High Performance**: Superior performance due to fasthttp usage
+- **Memory Efficient**: Lower memory usage compared to other frameworks
+- **Built-in Features**: Complete set of necessary middleware and utilities
 
 ## 5. Security Considerations
 
 ### 5.1 Input Validation
-**หลักการ:** Validate ข้อมูล input ทุกจุด
+**Principle:** Validate input data at every point
 
-**เหตุผล:**
-- **SQL Injection Prevention**: ป้องกัน SQL injection attacks
-- **Data Integrity**: รับประกันว่าข้อมูลที่เข้าระบบมีรูปแบบถูกต้อง
-- **Business Logic Protection**: ป้องกัน business logic จากข้อมูลที่ไม่ถูกต้อง
-- **User Experience**: แจ้ง error message ที่ชัดเจนเมื่อข้อมูลไม่ถูกต้อง
+**Rationale:**
+- **SQL Injection Prevention**: Protect against SQL injection attacks
+- **Data Integrity**: Ensure data entering the system has correct format
+- **Business Logic Protection**: Protect business logic from invalid data
+- **User Experience**: Provide clear error messages for invalid data
 
-### 5.2 Error Handling และ Logging
-**หลักการ:** Handle errors อย่างปลอดภัยและ log อย่างครบถ้วน
+### 5.2 Error Handling and Logging
+**Principle:** Handle errors securely and log comprehensively
 
-**เหตุผล:**
-- **Information Disclosure Prevention**: ไม่เปิดเผย sensitive information ใน error messages
-- **Debugging**: สามารถ debug ปัญหาได้อย่างมีประสิทธิภาพ
-- **Monitoring**: ติดตาม health ของระบบ
-- **Audit Trail**: เก็บ log สำหรับการตรวจสอบ
-
-## 6. Monitoring และ Observability
-
-### 6.1 Structured Logging
-**หลักการ:** ใช้ structured logging ด้วย Zap logger
-
-**เหตุผล:**
-- **Machine Readable**: Log format ที่ tools สามารถ parse ได้
-- **Efficient**: Performance สูงกว่า traditional logging
-- **Searchable**: ค้นหาและ filter logs ได้ง่าย
-- **Contextual**: เก็บ context information ที่เป็นประโยชน์
-
-### 6.2 Request ID Tracking
-**หลักการ:** ใส่ unique request ID ในทุก request
-
-**เหตุผล:**
-- **Request Tracing**: ติดตาม request ได้ตลอด lifecycle
-- **Debugging**: เชื่อมโยง logs ที่เกี่ยวข้องกัน
-- **Performance Analysis**: วิเคราะห์ performance ของแต่ละ request
-- **User Support**: ช่วยในการ support users เมื่อมีปัญหา
-
-### 6.3 Health Checks
-**หลักการ:** มี health check endpoints
-
-**เหตุผล:**
-- **Load Balancer Integration**: Load balancer ตรวจสอบ health ได้
-- **Monitoring Integration**: Monitoring tools ตรวจสอบสถานะได้
-- **Automated Recovery**: Auto-restart เมื่อ health check fail
-- **Operational Visibility**: Operations team เห็นสถานะระบบได้
-
+**Rationale:**
+- **Information Disclosure Prevention**: Avoid exposing sensitive information in error messages
+- **Debugging**: Enable efficient problem debugging
+- **Monitoring**: Track system health
+- **Audit Trail**: Maintain logs for auditing purposes
