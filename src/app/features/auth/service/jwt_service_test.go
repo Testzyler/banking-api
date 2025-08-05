@@ -361,12 +361,14 @@ func TestJwtService_RefreshAccessToken(t *testing.T) {
 
 				if tt.checkResponse {
 					assert.NotEmpty(t, newTokenResponse.Token)
-					assert.Equal(t, tt.refreshTokenString, newTokenResponse.RefreshToken) // Same refresh token
+					assert.NotEmpty(t, newTokenResponse.RefreshToken)
 					assert.True(t, newTokenResponse.Expiry.After(time.Now()))
 					assert.Equal(t, "user123", newTokenResponse.UserID)
 
 					// New access token should be different from original
 					assert.NotEqual(t, originalTokens.Token, newTokenResponse.Token)
+					// New refresh token should also be different from original
+					assert.NotEqual(t, originalTokens.RefreshToken, newTokenResponse.RefreshToken)
 
 					// Verify the new token is valid
 					claims, validateErr := service.ValidateAccessToken(newTokenResponse.Token)
@@ -374,6 +376,13 @@ func TestJwtService_RefreshAccessToken(t *testing.T) {
 					assert.Equal(t, "user123", claims.UserID)
 					assert.Equal(t, "testuser", claims.Username)
 					assert.Equal(t, "access", claims.Type)
+
+					// Verify the new refresh token is also valid
+					refreshClaims, validateRefreshErr := service.ValidateRefreshToken(newTokenResponse.RefreshToken)
+					assert.NoError(t, validateRefreshErr)
+					assert.Equal(t, "user123", refreshClaims.UserID)
+					assert.Equal(t, "testuser", refreshClaims.Username)
+					assert.Equal(t, "refresh", refreshClaims.Type)
 				}
 			}
 		})

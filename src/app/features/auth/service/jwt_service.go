@@ -170,10 +170,23 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
 		return nil, err
 	}
 
+	refreshTokenID := uuid.New().String()
+	refreshTokenParam := entities.GenerateTokenParams{
+		UserID:       claims.UserID,
+		Username:     claims.Username,
+		TokenVersion: newTokenVersion,
+		TokenID:      refreshTokenID,
+		TokenType:    "refresh",
+	}
+	refreshToken, _, err := s.generateToken(refreshTokenParam)
+	if err != nil {
+		return nil, err
+	}
+
 	return &entities.TokenResponse{
 		Token:        accessToken,
 		Expiry:       accessExpiry,
-		RefreshToken: refreshTokenString,
+		RefreshToken: refreshToken,
 		UserID:       claims.UserID,
 		TokenVersion: newTokenVersion,
 		TokenID:      newTokenID,
