@@ -24,7 +24,7 @@ type authService struct {
 type AuthService interface {
 	VerifyPin(ctx context.Context, params entities.PinVerifyParams) (*entities.TokenResponse, error)
 	RefreshToken(refreshToken string) (*entities.TokenResponse, error)
-	ListTokens(ctx context.Context) ([]entities.TokenResponse, error)
+	ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error)
 	BanToken(ctx context.Context, userID string) error
 }
 
@@ -32,8 +32,8 @@ func NewAuthService(repository repository.AuthRepository, jwtService JwtService,
 	return &authService{repository: repository, jwtService: jwtService, config: config}
 }
 
-func (s *authService) ListTokens(ctx context.Context) ([]entities.TokenResponse, error) {
-	tokens, err := s.repository.ListUserTokens(ctx)
+func (s *authService) ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error) {
+	tokens, err := s.repository.ListUserTokens(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *authService) RefreshToken(refreshToken string) (*entities.TokenResponse
 }
 
 func (s *authService) BanToken(ctx context.Context, userID string) error {
-	reason := "Manually banned by admin"
+	reason := "Manually banned by user request"
 	if err := s.repository.BanAllUserTokens(ctx, userID, reason); err != nil {
 		return err
 	}

@@ -27,14 +27,15 @@ type TokenResponse struct {
 	UserID       string    `json:"userID"`
 	TokenVersion int64     `json:"tokenVersion"` // Track when token was issued (timestamp)
 	TokenID      string    `json:"tokenID"`      // Unique token identifier
+	IsBanned     *bool     `json:"isBanned,omitempty"`
 }
 
 type Claims struct {
 	UserID       string `json:"userID"`
 	Username     string `json:"username"`
 	Type         string `json:"type" validate:"required,oneof=access refresh"`
-	TokenVersion int64  `json:"tokenVersion"` // Track when token was issued (timestamp)
-	TokenID      string `json:"tokenID"`      // Unique token identifier
+	TokenVersion int64  `json:"tokenVersion"`
+	TokenID      string `json:"tokenID"`
 	jwt.RegisteredClaims
 }
 
@@ -45,6 +46,13 @@ type BannedToken struct {
 	BannedAt     time.Time `json:"bannedAt"`
 	Reason       string    `json:"reason,omitempty"`
 	TokenVersion int64     `json:"tokenVersion"`
+}
+
+type BlacklistBan struct {
+	UserID       string    `json:"userID"`
+	BannedAt     time.Time `json:"bannedAt"`
+	Reason       string    `json:"reason,omitempty"`
+	BanTimestamp int64     `json:"banTimestamp"` // Timestamp when user was banned - tokens issued before this are invalid
 }
 
 type TokenValidationResult struct {

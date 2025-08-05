@@ -68,8 +68,8 @@ func (m *MockAuthRepositoryJWT) ResetPinAttempts(ctx context.Context, userID str
 	return args.Error(0)
 }
 
-func (m *MockAuthRepositoryJWT) ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error) {
-	args := m.Called(ctx)
+func (m *MockAuthRepositoryJWT) ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error) {
+	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -88,6 +88,11 @@ func (m *MockAuthRepositoryJWT) BanAllUserTokens(ctx context.Context, userID, re
 
 func (m *MockAuthRepositoryJWT) IsTokenBanned(ctx context.Context, tokenID string) (bool, error) {
 	args := m.Called(ctx, tokenID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockAuthRepositoryJWT) IsInBlacklist(ctx context.Context, userID string, tokenVersion int64) (bool, error) {
+	args := m.Called(ctx, userID, tokenVersion)
 	return args.Bool(0), args.Error(1)
 }
 
@@ -310,6 +315,15 @@ func TestJwtService_ValidateRefreshToken(t *testing.T) {
 func TestJwtService_RefreshAccessToken(t *testing.T) {
 	config := createTestConfig()
 	mockRepo := createMockAuthRepo()
+
+	// Set up default mock expectations for ban checks
+	mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+	mockRepo.On("IsInBlacklist", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return(false, nil)
+	mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
+		Valid:        true,
+		TokenVersion: time.Now().Unix(),
+	}, nil)
+
 	service := NewJwtService(config, mockRepo)
 
 	// Generate a valid refresh token first
@@ -480,6 +494,15 @@ func TestJwtService_Integration(t *testing.T) {
 	// Full integration test: generate -> validate -> refresh -> validate new token
 	config := createTestConfig()
 	mockRepo := createMockAuthRepo()
+
+	// Set up default mock expectations for ban checks
+	mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+	mockRepo.On("IsInBlacklist", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return(false, nil)
+	mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
+		Valid:        true,
+		TokenVersion: time.Now().Unix(),
+	}, nil)
+
 	service := NewJwtService(config, mockRepo)
 
 	// Step 1: Generate initial tokens
@@ -534,6 +557,9 @@ func TestJwtService_ValidateTokenWithBanCheck(t *testing.T) {
 
 				// Mock ban check - not banned
 				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+
+				// Mock user blacklist check - not banned
+				mockRepo.On("IsInBlacklist", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return(false, nil)
 
 				// Mock token version validation - valid
 				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
@@ -597,6 +623,9 @@ func TestJwtService_ValidateTokenWithBanCheck(t *testing.T) {
 				// Mock ban check - not banned
 				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
 
+				// Mock user blacklist check - not banned
+				mockRepo.On("IsInBlacklist", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return(false, nil)
+
 				// Mock token version validation - outdated
 				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(&entities.TokenValidationResult{
 					Valid:        false,
@@ -651,6 +680,9 @@ func TestJwtService_ValidateTokenWithBanCheck(t *testing.T) {
 
 				// Mock ban check - not banned
 				mockRepo.On("IsTokenBanned", mock.Anything, mock.AnythingOfType("string")).Return(false, nil)
+
+				// Mock user blacklist check - not banned
+				mockRepo.On("IsInBlacklist", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return(false, nil)
 
 				// Mock token version validation with error
 				mockRepo.On("ValidateTokenVersion", mock.Anything, mock.AnythingOfType("int64")).Return(nil, errors.New("version check error"))

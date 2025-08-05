@@ -4,6 +4,7 @@ import (
 	"github.com/Testzyler/banking-api/app/entities"
 	"github.com/Testzyler/banking-api/app/features/auth/service"
 	"github.com/Testzyler/banking-api/server/exception"
+	"github.com/Testzyler/banking-api/server/middlewares"
 	"github.com/Testzyler/banking-api/server/response"
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,12 +21,22 @@ func NewAuthHandler(router fiber.Router, service service.AuthService) {
 	auth := router.Group("/auth")
 	auth.Post("/verify-pin", handler.VerifyPin)
 	auth.Post("/refresh", handler.RefreshToken)
-	auth.Get("/tokens", handler.ListAllTokens)
-	auth.Post("/ban-tokens", handler.BanAllUserTokens)
+	auth.Get("/tokens", middlewares.AuthMiddleware(), handler.ListUserTokens)
+	auth.Post("/ban-tokens", middlewares.AuthMiddleware(), handler.BanAllUserTokens)
 }
 
-func (h *authHandler) ListAllTokens(c *fiber.Ctx) error {
-	tokens, err := h.service.ListTokens(c.Context())
+func (h *authHandler) ListUserTokens(c *fiber.Ctx) error {
+	userInterface := c.Locals("user")
+	if userInterface == nil {
+		return exception.ErrUnauthorized
+	}
+
+	claims, ok := userInterface.(entities.Claims)
+	if !ok {
+		return exception.ErrUnauthorized
+	}
+
+	tokens, err := h.service.ListUserTokens(c.Context(), claims.UserID)
 	if err != nil {
 		return err
 	}

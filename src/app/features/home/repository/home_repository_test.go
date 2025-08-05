@@ -216,22 +216,22 @@ func TestHomeRepository_GetHomeData_Success(t *testing.T) {
 
 	// Mock empty results for other entities (no data found)
 	cardRows := sqlmock.NewRows([]string{"card_id", "user_id", "name"})
-	mock.ExpectQuery("SELECT \\* FROM `debit_cards` WHERE user_id = \\?").
+	mock.ExpectQuery("SELECT \\* FROM `debit_cards` WHERE user_id = \\? ORDER BY name ASC").
 		WithArgs("test123").
 		WillReturnRows(cardRows)
 
 	bannerRows := sqlmock.NewRows([]string{"banner_id", "user_id", "title"})
-	mock.ExpectQuery("SELECT \\* FROM `banners` WHERE user_id = \\?").
+	mock.ExpectQuery("SELECT \\* FROM `banners` WHERE user_id = \\? ORDER BY banner_id ASC").
 		WithArgs("test123").
 		WillReturnRows(bannerRows)
 
 	txnRows := sqlmock.NewRows([]string{"transaction_id", "user_id", "name"})
-	mock.ExpectQuery("SELECT \\* FROM `transactions` WHERE user_id = \\?").
+	mock.ExpectQuery("SELECT \\* FROM `transactions` WHERE user_id = \\? ORDER BY transaction_id ASC").
 		WithArgs("test123").
 		WillReturnRows(txnRows)
 
 	accountRows := sqlmock.NewRows([]string{"account_id", "user_id", "type"})
-	mock.ExpectQuery("SELECT \\* FROM `accounts` WHERE user_id = \\?").
+	mock.ExpectQuery("SELECT `accounts`\\.`account_id`,`accounts`\\.`user_id`,`accounts`\\.`type`,`accounts`\\.`currency`,`accounts`\\.`account_number`,`accounts`\\.`issuer` FROM `accounts` JOIN account_details ON accounts\\.account_id = account_details\\.account_id WHERE accounts\\.user_id = \\? ORDER BY account_details\\.is_main_account DESC, accounts\\.type ASC").
 		WithArgs("test123").
 		WillReturnRows(accountRows)
 

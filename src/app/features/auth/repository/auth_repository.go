@@ -25,10 +25,11 @@ type AuthRepository interface {
 	IncrementFailedAttempts(ctx context.Context, userID string) (*entities.PinAttemptData, error)
 	SetPinLock(ctx context.Context, userID string, lockedUntil time.Time, failedAttempts int, lastAttemptAt *time.Time) error
 	ResetPinAttempts(ctx context.Context, userID string) error
-	ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error)
+	ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error)
 	StoreToken(ctx context.Context, userID string, tokenResponse *entities.TokenResponse) error
 	BanAllUserTokens(ctx context.Context, userID, reason string) error
 	IsTokenBanned(ctx context.Context, tokenID string) (bool, error)
+	IsInBlacklist(ctx context.Context, userID string, tokenVersion int64) (bool, error)
 	ValidateTokenVersion(ctx context.Context, tokenVersion int64) (*entities.TokenValidationResult, error)
 	CleanupExpiredBans(ctx context.Context) error
 
@@ -60,10 +61,13 @@ func (r *authRepository) bannedTokenKey(tokenID string) string {
 	return fmt.Sprintf("banned_token:%s", tokenID)
 }
 
+func (r *authRepository) bannedBlacklistKey(userID string) string {
+	return fmt.Sprintf("banned_blacklist:%s", userID)
+}
+
 func (r *authRepository) userTokensKey(userID string) string {
 	return fmt.Sprintf("user_tokens:%s", userID)
 }
-
 
 func (r *authRepository) invalidateUserCacheByID(userID string) {
 	if r.redisClient == nil {
@@ -269,25 +273,48 @@ func (r *authRepository) BanAllUserTokens(ctx context.Context, userID, reason st
 		return fmt.Errorf("Redis client is not initialized")
 	}
 
-	// Get all user tokens
+	banTimestamp := time.Now().Unix()
+	key := r.bannedBlacklistKey(userID)
+
+	blacklist := entities.BlacklistBan{
+		UserID:       userID,
+		BannedAt:     time.Now(),
+		Reason:       reason,
+		BanTimestamp: banTimestamp,
+	}
+
+	blacklistData, err := json.Marshal(blacklist)
+	if err != nil {
+		return fmt.Errorf("failed to marshal user ban data: %w", err)
+	}
+
+	// Store user ban for 24 hours
+	if err := r.redisClient.Set(ctx, key, string(blacklistData), 24*time.Hour).Err(); err != nil {
+		return fmt.Errorf("failed to store user ban in Redis: %w", err)
+	}
+
+	// Also ban individual tokens for immediate effect (optional)
 	userTokensKey := r.userTokensKey(userID)
 	tokens, err := r.redisClient.SMembers(ctx, userTokensKey).Result()
 	if err != nil {
-		return fmt.Errorf("failed to get user tokens: %w", err)
+		logger.Warnf("Failed to get user tokens for individual banning: %v", err)
+	} else {
+		// Ban each token individually
+		for _, tokenStr := range tokens {
+			var tokenResponse entities.TokenResponse
+			if err := json.Unmarshal([]byte(tokenStr), &tokenResponse); err != nil {
+				logger.Errorf("Failed to unmarshal token for banning: %v", err)
+				continue
+			}
+
+			if err := r.banToken(ctx, userID, tokenResponse.TokenID, reason); err != nil {
+				logger.Errorf("Failed to ban token %s: %v", tokenResponse.TokenID, err)
+			}
+		}
 	}
 
-	// Ban each token individually
-	for _, tokenStr := range tokens {
-		var tokenResponse entities.TokenResponse
-		if err := json.Unmarshal([]byte(tokenStr), &tokenResponse); err != nil {
-			logger.Errorf("Failed to unmarshal token for banning: %v", err)
-			continue
-		}
-
-		if err := r.banToken(ctx, userID, tokenResponse.TokenID, reason); err != nil {
-			logger.Errorf("Failed to ban token %s: %v", tokenResponse.TokenID, err)
-		}
-	}
+	// Invalidate user cache
+	r.invalidateUserCacheByID(userID)
 
 	logger.Infof("All tokens banned for user %s: %s", userID, reason)
 	return nil
@@ -337,9 +364,31 @@ func (r *authRepository) IsTokenBanned(ctx context.Context, tokenID string) (boo
 	return result != "", nil
 }
 
+func (r *authRepository) IsInBlacklist(ctx context.Context, userID string, tokenVersion int64) (bool, error) {
+	if r.redisClient == nil {
+		return false, nil // If Redis is not available, don't assume user is banned
+	}
+
+	blacklistKey := r.bannedBlacklistKey(userID)
+	result, err := r.redisClient.Get(ctx, blacklistKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check token ban status: %w", err)
+	}
+
+	// Parse user ban data
+	var blacklist entities.BlacklistBan
+	if err := json.Unmarshal([]byte(result), &blacklist); err != nil {
+		logger.Errorf("Failed to unmarshal user ban data: %v", err)
+		return false, nil
+	}
+
+	return tokenVersion < blacklist.BanTimestamp, nil
+}
+
 func (r *authRepository) ValidateTokenVersion(ctx context.Context, tokenVersion int64) (*entities.TokenValidationResult, error) {
-	// Token version is based on issued timestamp
-	// Check if token is too old (older than 24 hours for example)
 	currentTime := time.Now().Unix()
 	maxAge := int64(24 * 60 * 60) // 24 hours in seconds
 
@@ -419,7 +468,7 @@ func (r *authRepository) StoreToken(ctx context.Context, userID string, tokenRes
 	return nil
 }
 
-func (r *authRepository) ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error) {
+func (r *authRepository) ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error) {
 	if r.redisClient == nil {
 		return nil, fmt.Errorf("Redis client is not initialized")
 	}
@@ -428,14 +477,14 @@ func (r *authRepository) ListUserTokens(ctx context.Context) ([]entities.TokenRe
 	var cursor uint64
 
 	for {
-		keys, nextCursor, err := r.redisClient.Scan(ctx, cursor, "user_tokens:*", 100).Result()
+		key := r.userTokensKey(userID)
+		keys, nextCursor, err := r.redisClient.Scan(ctx, cursor, key, 100).Result()
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan token keys from Redis: %w", err)
 		}
 
 		// Process found keys
 		for _, key := range keys {
-			userID := key[len("user_tokens:"):]
 			tokens, err := r.redisClient.SMembers(ctx, key).Result()
 			if err != nil {
 				logger.Errorf("Failed to get tokens for user %s: %v", userID, err)
@@ -448,6 +497,20 @@ func (r *authRepository) ListUserTokens(ctx context.Context) ([]entities.TokenRe
 					logger.Errorf("Failed to unmarshal token for user %s: %v", userID, err)
 					continue
 				}
+
+				isTokenBanned, err := r.IsTokenBanned(ctx, tokenResponse.TokenID)
+				if err != nil {
+					logger.Errorf("Failed to check if token %s is banned: %v", tokenResponse.TokenID, err)
+					isTokenBanned = false
+				}
+
+				isUserBanned, err := r.IsInBlacklist(ctx, userID, tokenResponse.TokenVersion)
+				if err != nil {
+					logger.Errorf("Failed to check user ban status for user %s: %v", userID, err)
+					isUserBanned = false
+				}
+				isBanned := isUserBanned || isTokenBanned
+				tokenResponse.IsBanned = &isBanned
 				allTokenResponses = append(allTokenResponses, tokenResponse)
 			}
 		}

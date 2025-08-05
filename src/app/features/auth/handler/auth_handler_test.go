@@ -41,8 +41,8 @@ func (m *MockAuthService) RefreshToken(refreshToken string) (*entities.TokenResp
 	return args.Get(0).(*entities.TokenResponse), args.Error(1)
 }
 
-func (m *MockAuthService) ListTokens(ctx context.Context) ([]entities.TokenResponse, error) {
-	args := m.Called(ctx)
+func (m *MockAuthService) ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error) {
+	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -283,7 +283,7 @@ func TestAuthHandler_InvalidRequestBody(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestAuthHandler_ListAllTokens(t *testing.T) {
+func TestAuthHandler_ListUserTokens(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockSetup      func(*MockAuthService)
@@ -307,7 +307,7 @@ func TestAuthHandler_ListAllTokens(t *testing.T) {
 						UserID:       "user2",
 					},
 				}
-				mockService.On("ListTokens", mock.Anything).Return(tokens, nil)
+				mockService.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(tokens, nil)
 			},
 			expectedStatus: fiber.StatusOK,
 			expectSuccess:  true,
@@ -316,7 +316,7 @@ func TestAuthHandler_ListAllTokens(t *testing.T) {
 			name: "empty token list",
 			mockSetup: func(mockService *MockAuthService) {
 				tokens := []entities.TokenResponse{}
-				mockService.On("ListTokens", mock.Anything).Return(tokens, nil)
+				mockService.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(tokens, nil)
 			},
 			expectedStatus: fiber.StatusOK,
 			expectSuccess:  true,
@@ -324,7 +324,7 @@ func TestAuthHandler_ListAllTokens(t *testing.T) {
 		{
 			name: "service error during token listing",
 			mockSetup: func(mockService *MockAuthService) {
-				mockService.On("ListTokens", mock.Anything).Return(nil, &response.ErrorResponse{
+				mockService.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(nil, &response.ErrorResponse{
 					HttpStatusCode: fiber.StatusInternalServerError,
 					Code:           response.ErrCodeInternalServer,
 					Message:        "Database connection failed",
@@ -336,9 +336,17 @@ func TestAuthHandler_ListAllTokens(t *testing.T) {
 		{
 			name: "generic error from service",
 			mockSetup: func(mockService *MockAuthService) {
-				mockService.On("ListTokens", mock.Anything).Return(nil, errors.New("unexpected error"))
+				mockService.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(nil, errors.New("unexpected error"))
 			},
 			expectedStatus: fiber.StatusInternalServerError,
+			expectSuccess:  false,
+		},
+		{
+			name: "unauthorized - no user context",
+			mockSetup: func(mockService *MockAuthService) {
+				// No mock setup needed as this should fail before service call
+			},
+			expectedStatus: fiber.StatusUnauthorized,
 			expectSuccess:  false,
 		},
 	}
@@ -351,7 +359,19 @@ func TestAuthHandler_ListAllTokens(t *testing.T) {
 
 			// Create handler
 			handler := &authHandler{service: mockService}
-			app.Get("/auth/tokens", handler.ListAllTokens)
+
+			// Setup route with conditional middleware to set user context
+			app.Get("/auth/tokens", func(c *fiber.Ctx) error {
+				// Only set user context for authorized tests
+				if tt.name != "unauthorized - no user context" {
+					c.Locals("user", entities.Claims{
+						UserID:   "test-user-123",
+						Username: "testuser",
+						Type:     "access",
+					})
+				}
+				return handler.ListUserTokens(c)
+			})
 
 			// Setup mock expectations
 			tt.mockSetup(mockService)
@@ -606,15 +626,15 @@ func TestAuthHandler_HTTPMethodValidation(t *testing.T) {
 			endpoint:       "/auth/refresh",
 			expectedStatus: fiber.StatusMethodNotAllowed,
 		},
-		// ListAllTokens should only accept GET
+		// ListUserTokens should only accept GET
 		{
-			name:           "ListAllTokens with POST method",
+			name:           "ListUserTokens with POST method",
 			method:         http.MethodPost,
 			endpoint:       "/auth/tokens",
 			expectedStatus: fiber.StatusMethodNotAllowed,
 		},
 		{
-			name:           "ListAllTokens with PUT method",
+			name:           "ListUserTokens with PUT method",
 			method:         http.MethodPut,
 			endpoint:       "/auth/tokens",
 			expectedStatus: fiber.StatusMethodNotAllowed,
@@ -644,7 +664,7 @@ func TestAuthHandler_HTTPMethodValidation(t *testing.T) {
 			handler := &authHandler{service: mockService}
 			app.Post("/auth/verify-pin", handler.VerifyPin)
 			app.Post("/auth/refresh", handler.RefreshToken)
-			app.Get("/auth/tokens", handler.ListAllTokens)
+			app.Get("/auth/tokens", handler.ListUserTokens)
 			app.Post("/auth/ban-tokens", handler.BanAllUserTokens)
 
 			// Create request with wrong method

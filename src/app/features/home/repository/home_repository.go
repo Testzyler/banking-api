@@ -54,6 +54,7 @@ func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, erro
 			Preload("DebitCardDesign").
 			Preload("DebitCardStatus").
 			Where("user_id = ?", userID).
+			Order("name ASC").
 			Find(&cards).Error; err != nil {
 			return err
 		}
@@ -73,7 +74,7 @@ func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, erro
 
 		// Banners
 		var banners []models.Banner
-		if err := tx.Find(&banners, "user_id = ?", userID).Error; err != nil {
+		if err := tx.Order("banner_id ASC").Find(&banners, "user_id = ?", userID).Error; err != nil {
 			return err
 		}
 		for _, b := range banners {
@@ -88,7 +89,7 @@ func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, erro
 
 		// Transactions
 		var transactions []models.Transaction
-		if err := tx.Find(&transactions, "user_id = ?", userID).Error; err != nil {
+		if err := tx.Order("transaction_id ASC").Find(&transactions, "user_id = ?", userID).Error; err != nil {
 			return err
 		}
 		for _, t := range transactions {
@@ -106,7 +107,9 @@ func (r *homeRepository) GetHomeData(userID string) (entities.HomeResponse, erro
 		if err := tx.Preload("AccountDetails").
 			Preload("AccountBalance").
 			Preload("AccountFlags").
-			Where("user_id = ?", userID).
+			Joins("JOIN account_details ON accounts.account_id = account_details.account_id").
+			Where("accounts.user_id = ?", userID).
+			Order("account_details.is_main_account DESC, accounts.type ASC").
 			Find(&accounts).Error; err != nil {
 			return err
 		}

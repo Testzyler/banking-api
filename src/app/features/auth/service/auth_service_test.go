@@ -70,8 +70,8 @@ func (m *MockAuthRepository) ResetPinAttempts(ctx context.Context, userID string
 	return args.Error(0)
 }
 
-func (m *MockAuthRepository) ListUserTokens(ctx context.Context) ([]entities.TokenResponse, error) {
-	args := m.Called(ctx)
+func (m *MockAuthRepository) ListUserTokens(ctx context.Context, userID string) ([]entities.TokenResponse, error) {
+	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -90,6 +90,11 @@ func (m *MockAuthRepository) BanAllUserTokens(ctx context.Context, userID, reaso
 
 func (m *MockAuthRepository) IsTokenBanned(ctx context.Context, tokenID string) (bool, error) {
 	args := m.Called(ctx, tokenID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockAuthRepository) IsInBlacklist(ctx context.Context, userID string, tokenVersion int64) (bool, error) {
+	args := m.Called(ctx, userID, tokenVersion)
 	return args.Bool(0), args.Error(1)
 }
 
@@ -896,7 +901,7 @@ func TestAuthService_BanToken(t *testing.T) {
 			name:   "successful token ban",
 			userID: "user123",
 			mockSetup: func(mockRepo *MockAuthRepository) {
-				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by admin").Return(nil)
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by user request").Return(nil)
 			},
 			expectError: false,
 		},
@@ -904,7 +909,7 @@ func TestAuthService_BanToken(t *testing.T) {
 			name:   "empty userID",
 			userID: "",
 			mockSetup: func(mockRepo *MockAuthRepository) {
-				mockRepo.On("BanAllUserTokens", mock.Anything, "", "Manually banned by admin").Return(nil)
+				mockRepo.On("BanAllUserTokens", mock.Anything, "", "Manually banned by user request").Return(nil)
 			},
 			expectError: false, // Should still work with empty userID
 		},
@@ -912,7 +917,7 @@ func TestAuthService_BanToken(t *testing.T) {
 			name:   "repository error during ban",
 			userID: "user123",
 			mockSetup: func(mockRepo *MockAuthRepository) {
-				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by admin").Return(errors.New("redis connection failed"))
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user123", "Manually banned by user request").Return(errors.New("redis connection failed"))
 			},
 			expectError:   true,
 			errorContains: "redis connection failed",
@@ -922,7 +927,7 @@ func TestAuthService_BanToken(t *testing.T) {
 			userID: "user_no_tokens",
 			mockSetup: func(mockRepo *MockAuthRepository) {
 				// Repository should handle case where user has no tokens gracefully
-				mockRepo.On("BanAllUserTokens", mock.Anything, "user_no_tokens", "Manually banned by admin").Return(nil)
+				mockRepo.On("BanAllUserTokens", mock.Anything, "user_no_tokens", "Manually banned by user request").Return(nil)
 			},
 			expectError: false,
 		},
@@ -931,7 +936,7 @@ func TestAuthService_BanToken(t *testing.T) {
 			userID: "nonexistent_user",
 			mockSetup: func(mockRepo *MockAuthRepository) {
 				// Repository should handle non-existent user case
-				mockRepo.On("BanAllUserTokens", mock.Anything, "nonexistent_user", "Manually banned by admin").Return(nil)
+				mockRepo.On("BanAllUserTokens", mock.Anything, "nonexistent_user", "Manually banned by user request").Return(nil)
 			},
 			expectError: false,
 		},
@@ -1002,7 +1007,7 @@ func TestAuthService_ListTokens(t *testing.T) {
 						TokenVersion: time.Now().Unix(),
 					},
 				}
-				mockRepo.On("ListUserTokens", mock.Anything).Return(tokens, nil)
+				mockRepo.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(tokens, nil)
 			},
 			expectError:  false,
 			expectTokens: 2,
@@ -1011,7 +1016,7 @@ func TestAuthService_ListTokens(t *testing.T) {
 			name: "empty token list",
 			mockSetup: func(mockRepo *MockAuthRepository) {
 				tokens := []entities.TokenResponse{}
-				mockRepo.On("ListUserTokens", mock.Anything).Return(tokens, nil)
+				mockRepo.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(tokens, nil)
 			},
 			expectError:  false,
 			expectTokens: 0,
@@ -1019,7 +1024,7 @@ func TestAuthService_ListTokens(t *testing.T) {
 		{
 			name: "repository error",
 			mockSetup: func(mockRepo *MockAuthRepository) {
-				mockRepo.On("ListUserTokens", mock.Anything).Return(nil, errors.New("redis scan failed"))
+				mockRepo.On("ListUserTokens", mock.Anything, mock.AnythingOfType("string")).Return(nil, errors.New("redis scan failed"))
 			},
 			expectError:   true,
 			expectTokens:  0,
@@ -1049,7 +1054,7 @@ func TestAuthService_ListTokens(t *testing.T) {
 
 			// Act
 			ctx := context.Background()
-			tokens, err := service.ListTokens(ctx)
+			tokens, err := service.ListUserTokens(ctx, "test-user-123")
 
 			// Assert
 			if tt.expectError {

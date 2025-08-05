@@ -155,6 +155,46 @@ func (s *jwtService) RefreshAccessToken(refreshTokenString string) (*entities.To
 		return nil, err
 	}
 
+	if s.authRepo == nil {
+		return nil, exception.ErrInternalServer
+	}
+
+	ctx := context.Background()
+
+	// Check if the specific refresh token is banned
+	isBanned, err := s.authRepo.IsTokenBanned(ctx, claims.TokenID)
+	if err != nil {
+		logger.Errorf("Failed to check if token is banned: %v", err)
+		return nil, exception.NewTokenBannedError()
+	}
+
+	if isBanned {
+		return nil, exception.NewTokenBannedError()
+	}
+
+	// Check if the user is banned (this will catch tokens issued before user ban)
+	inBlacklist, err := s.authRepo.IsInBlacklist(ctx, claims.UserID, claims.TokenVersion)
+	if err != nil {
+		logger.Errorf("Failed to check token blacklist status: %v", err)
+		return nil, exception.NewTokenBannedError()
+	}
+
+	if inBlacklist {
+		logger.Infof("Rejecting refresh token for blacklisted user %s (token version: %d)", claims.UserID, claims.TokenVersion)
+		return nil, exception.NewTokenBannedError()
+	}
+
+	// Check token version validity
+	validationResult, err := s.authRepo.ValidateTokenVersion(ctx, claims.TokenVersion)
+	if err != nil {
+		logger.Errorf("Failed to validate token version: %v", err)
+		return nil, exception.ErrInternalServer
+	}
+
+	if !validationResult.Valid {
+		return nil, exception.NewTokenOutdatedError(validationResult.Reason)
+	}
+
 	newTokenID := uuid.New().String()
 	newTokenVersion := time.Now().Unix()
 	// Generate new access token
@@ -212,6 +252,8 @@ func (s *jwtService) ValidateTokenWithBanCheck(tokenString string) (*entities.To
 	}
 
 	ctx := context.Background()
+
+	// Check if the specific token is banned
 	isBanned, err := s.authRepo.IsTokenBanned(ctx, claims.TokenID)
 	if err != nil {
 		logger.Errorf("Failed to check if token is banned: %v", err)
@@ -226,6 +268,26 @@ func (s *jwtService) ValidateTokenWithBanCheck(tokenString string) (*entities.To
 		return &entities.TokenValidationResult{
 			Valid:        false,
 			Reason:       "token is banned",
+			TokenVersion: claims.TokenVersion,
+		}, exception.NewTokenBannedError()
+	}
+
+	// Check if the token is blacklisted (this will catch tokens issued before user ban)
+	inBlacklist, err := s.authRepo.IsInBlacklist(ctx, claims.UserID, claims.TokenVersion)
+	if err != nil {
+		logger.Errorf("Failed to check user ban status: %v", err)
+		return &entities.TokenValidationResult{
+			Valid:        true,
+			Reason:       "token ban check failed",
+			TokenVersion: claims.TokenVersion,
+		}, nil
+	}
+
+	if inBlacklist {
+		logger.Infof("Rejecting access token for blacklisted user %s (token version: %d)", claims.UserID, claims.TokenVersion)
+		return &entities.TokenValidationResult{
+			Valid:        false,
+			Reason:       "token is blacklisted",
 			TokenVersion: claims.TokenVersion,
 		}, exception.NewTokenBannedError()
 	}

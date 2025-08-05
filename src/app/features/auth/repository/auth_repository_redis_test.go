@@ -765,8 +765,8 @@ func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
 		{
 			name: "successful list with multiple users and tokens",
 			setupMock: func(mock redismock.ClientMock) {
-				// Mock scanning for user_tokens:* keys
-				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{"user_tokens:user1", "user_tokens:user2"}, 0)
+				// Mock scanning for user_tokens:user1:* keys (specific to user1)
+				mock.ExpectScan(0, "user_tokens:user1:*", 100).SetVal([]string{"user_tokens:user1:token1", "user_tokens:user1:token2"}, 0)
 
 				// Mock getting tokens for user1
 				token1 := entities.TokenResponse{
@@ -779,24 +779,17 @@ func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
 				}
 				token1JSON, _ := json.Marshal(token1)
 				token2JSON, _ := json.Marshal(token2)
-				mock.ExpectSMembers("user_tokens:user1").SetVal([]string{string(token1JSON), string(token2JSON)})
-
-				// Mock getting tokens for user2
-				token3 := entities.TokenResponse{
-					TokenID: "token3",
-					UserID:  "user2",
-				}
-				token3JSON, _ := json.Marshal(token3)
-				mock.ExpectSMembers("user_tokens:user2").SetVal([]string{string(token3JSON)})
+				mock.ExpectSMembers("user_tokens:user1:token1").SetVal([]string{string(token1JSON)})
+				mock.ExpectSMembers("user_tokens:user1:token2").SetVal([]string{string(token2JSON)})
 			},
 			expectError: false,
-			expectCount: 3, // 2 tokens for user1 + 1 token for user2
+			expectCount: 2, // Only 2 tokens for user1
 		},
 		{
 			name: "no user tokens found",
 			setupMock: func(mock redismock.ClientMock) {
-				// Mock scanning for user_tokens:* keys - empty result
-				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{}, 0)
+				// Mock scanning for user_tokens:user1:* keys - empty result
+				mock.ExpectScan(0, "user_tokens:user1:*", 100).SetVal([]string{}, 0)
 			},
 			expectError: false,
 			expectCount: 0,
@@ -805,7 +798,7 @@ func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
 			name: "redis scan error",
 			setupMock: func(mock redismock.ClientMock) {
 				// Mock Redis error when scanning
-				mock.ExpectScan(0, "user_tokens:*", 100).SetErr(redis.ErrClosed)
+				mock.ExpectScan(0, "user_tokens:user1:*", 100).SetErr(redis.ErrClosed)
 			},
 			expectError: true,
 			expectCount: 0,
@@ -813,11 +806,11 @@ func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
 		{
 			name: "error getting tokens for specific user",
 			setupMock: func(mock redismock.ClientMock) {
-				// Mock scanning for user_tokens:* keys
-				mock.ExpectScan(0, "user_tokens:*", 100).SetVal([]string{"user_tokens:user1"}, 0)
+				// Mock scanning for user_tokens:user1:* keys
+				mock.ExpectScan(0, "user_tokens:user1:*", 100).SetVal([]string{"user_tokens:user1:token1"}, 0)
 
 				// Mock error getting tokens for user1
-				mock.ExpectSMembers("user_tokens:user1").SetErr(redis.ErrClosed)
+				mock.ExpectSMembers("user_tokens:user1:token1").SetErr(redis.ErrClosed)
 			},
 			expectError: false, // Method handles individual user errors gracefully
 			expectCount: 0,
@@ -845,7 +838,7 @@ func TestAuthRepository_ListUserTokens_WithRedismock(t *testing.T) {
 			tt.setupMock(redisMock)
 
 			// Act
-			tokens, err := repo.ListUserTokens(context.Background())
+			tokens, err := repo.ListUserTokens(context.Background(), "user1")
 
 			// Assert
 			if tt.expectError {
@@ -988,7 +981,7 @@ func TestAuthRepository_NilRedis_Coverage(t *testing.T) {
 	})
 
 	t.Run("ListUserTokens with nil Redis - should return error", func(t *testing.T) {
-		tokens, err := repo.ListUserTokens(context.Background())
+		tokens, err := repo.ListUserTokens(context.Background(), "any_user")
 		assert.Error(t, err)
 		assert.Nil(t, tokens)
 		assert.Contains(t, err.Error(), "Redis client is not initialized")
@@ -1058,7 +1051,7 @@ func TestAuthRepository_SetPinLock_NilRedis(t *testing.T) {
 	err = repo.SetPinLock(context.Background(), "user123", lockedUntil, 3, &now)
 
 	// Assert - should return error since GetPinAttemptData will return default but setPinAttemptData will fail
-	assert.NoError(t, err) 
+	assert.NoError(t, err)
 
 	// Verify SQL expectations were met
 	assert.NoError(t, sqlMock.ExpectationsWereMet())
